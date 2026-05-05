@@ -247,7 +247,7 @@ export default function Home() {
             <h5>Quick Links</h5>
             <ul className="list-unstyled">
               <li>
-                <a href="https://devopsedu.vn/" className="text-dark text-decoration-none">Home</a>
+                <a href="https://anphuc.site/" className="text-dark text-decoration-none">Home</a>
               </li>
               <li>
                 <a href="/products" className="text-dark text-decoration-none">Products</a>
@@ -262,7 +262,7 @@ export default function Home() {
           <Col md={4} className="mb-3">
             <h5>Follow Us</h5>
             <div className="d-flex gap-3">
-              <a href="https://www.facebook.com/groups/devopsedu.vn" target="_blank" rel="noopener noreferrer" className="text-dark">
+              <a href="https://www.facebook.com/groups/anphuc.site" target="_blank" rel="noopener noreferrer" className="text-dark">
                 <Facebook />
               </a>
               <a href="https://www.youtube.com/@devopseduvn" target="_blank" rel="noopener noreferrer" className="text-dark">
@@ -272,7 +272,7 @@ export default function Home() {
           </Col>
         </Row>
         <hr className="border-light" />
-        <p className="text-center mb-0">&copy; {new Date().getFullYear()} Shop now - Microservice - devopsedu.vn. All rights reserved.</p>
+        <p className="text-center mb-0">&copy; {new Date().getFullYear()} Shop now - Microservice - anphuc.site. All rights reserved.</p>
       </Container>
     </footer>
     </Container>

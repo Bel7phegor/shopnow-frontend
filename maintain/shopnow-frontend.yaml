@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopnow-frontend-deployment
+  namespace: shopnow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopnow-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: shopnow-frontend
+    spec:
+      containers:
+        - name: shopnow-frontend
+          image: 250830191861.dkr.ecr.ap-southeast-3.amazonaws.com/shopnow/frontend:v1
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopnow-frontend-service
+  namespace: shopnow
+spec:
+  type: ClusterIP
+  selector:
+    app: shopnow-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+--- 
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shopnow-frontend-ingress
+  namespace: shopnow
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shopnow-frontend.anphuc.site
+      http:
+        paths:
+        - backend:
+            service:
+              name: shopnow-frontend-service
+              port:
+                number: 80
+          path: /
+          pathType: Prefix
