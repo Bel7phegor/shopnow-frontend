@@ -35,12 +35,12 @@ jobs:
       
       - name: Build docker images
         run: |
-          docker build --network=host --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} .
+          docker build -t --network=host --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} ${{ env.IMAGE_VERSION }} .
           docker push ${{ env.IMAGE_VERSION }}
   
   deploy:
     name: Deploy to AWS
-    runs-on: [self-host, fe-runner-dev]
+    runs-on: [self-hosted, fe-runner-dev]
     needs: build-and-push
     environment: development
 
@@ -49,18 +49,18 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ env.ROLE_ACCESS }}
-        region: ${{ env.AWS_REGION}}
+        aws-region: ${{ env.AWS_REGION}}
     
     - name: Deploy on AWS with CloudWatch Logs
       run: |
-        aws ecr get-login-password ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY}}
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY}}
         docker stop ${{ env.CONTAINER_NAME }} || true
-        docker run ${{ env.CONTAINER_NAME }} || true
+        docker rm ${{ env.CONTAINER_NAME }} || true
         docker pull ${{ env.IMAGE_VERSION }}
         docker run --name ${{ env.CONTAINER_NAME }} \
         --restart unless-stopped \
         -dp ${{ secrets.FE_PORT }} \
-        --log-driver=aws-logs \
+        --log-driver=awslogs \
         --log-opt awslogs-region=${{ env.AWS_REGION }} \
         --log-opt awslogs-group=/ec2/${{ env.CONTAINER_NAME }} \
         --log-opt awslogs-create-group=true \
