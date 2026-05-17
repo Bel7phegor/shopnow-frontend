@@ -1,0 +1,67 @@
+name: Deploy and test in AWS
+
+on:
+  push:
+    branches: [ "develop"]
+
+env:
+  AWS_REGION: ap-southeast-3
+  IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:dev_${{ github.sha }}
+  ROLE_ACCESS: arn:aws:iam::250830191861:role/github-action-role
+  CONTAINER_NAME: ${{ github.event.repository.name }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ACCESS }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to AWS ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+      
+      - name: Build docker images
+        run: |
+          docker build --network=host --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} .
+          docker push ${{ env.IMAGE_VERSION }}
+  
+  deploy:
+    name: Deploy to AWS
+    runs-on: [self-host, fe-runner-dev]
+    needs: build-and-push
+    environment: development
+
+    steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ env.ROLE_ACCESS }}
+        region: ${{ env.AWS_REGION}}
+    
+    - name: Deploy on AWS with CloudWatch Logs
+      run: |
+        aws ecr get-login-password ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY}}
+        docker stop ${{ env.CONTAINER_NAME }} || true
+        docker run ${{ env.CONTAINER_NAME }} || true
+        docker pull ${{ env.IMAGE_VERSION }}
+        docker run --name ${{ env.CONTAINER_NAME }} \
+        --restart unless-stopped \
+        -dp ${{ secrets.FE_PORT }} \
+        --log-driver=aws-logs \
+        --log-opt awslogs-region=${{ env.AWS_REGION }} \
+        --log-opt awslogs-group=/ec2/${{ env.CONTAINER_NAME }} \
+        --log-opt awslogs-create-group=true \
+        ${{ env.IMAGE_VERSION }}
