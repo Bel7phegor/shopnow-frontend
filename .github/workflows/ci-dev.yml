@@ -35,7 +35,7 @@ jobs:
       
       - name: Build docker images
         run: |
-          docker build -t --network=host --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} ${{ env.IMAGE_VERSION }} .
+          docker built --network=host --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} -t ${{ env.IMAGE_VERSION }} .
           docker push ${{ env.IMAGE_VERSION }}
   
   deploy:
