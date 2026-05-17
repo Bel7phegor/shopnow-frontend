@@ -7,7 +7,7 @@ on:
 env:
   AWS_REGION: ap-southeast-3
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:dev_${{ github.sha }}
-  ROLE_ACCESS: arn:aws:iam::250830191861:role/github-action-role
+  ROLE_ACCESS: arn:aws:iam::250830191861:role/token-gitlab-fe-shopnow-role
   CONTAINER_NAME: ${{ github.event.repository.name }}
 
 permissions:
