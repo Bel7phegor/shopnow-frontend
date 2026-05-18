@@ -2,7 +2,7 @@ name: Deploy and test in AWS
 
 on:
   push:
-    branches: [ "develop"]
+    branches: ["develop"]
 
 env:
   AWS_REGION: ap-southeast-3
