@@ -471,15 +471,15 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ### Security Scanning Reports
 
-All scanning reports are generated and retained for compliance:
+All scanning **reports** are generated and retained for compliance:
 
-| Scan Type | Tool | Trigger | Retention |
+| Scan Type | Tool | File | Retention |
 |-----------|------|---------|-----------|
-| Dependency | Snyk | Every prod build | 30 days |
-| Filesystem | Trivy FS | Every prod build | 30 days |
-| Docker Image | Trivy Image | Every prod build | 30 days |
-| Web App | Arachni | Post-deploy (prod) | 30 days |
-| OWASP Top 10 | ZAP | Post-deploy (prod) | 30 days |
+| Dependency | Snyk | [Snyk scan code](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054479523) | 30 days |
+| Filesystem | Trivy FS | [Trivy filesystem scan](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054460074) | 30 days |
+| Docker Image | Trivy Image | [Trivy image scan](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054474332) | 30 days |
+| Web App | Arachni | [Aranchi website scan](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054573714) | 30 days |
+| OWASP Top 10 | ZAP | [ZAP website scan](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054574910) | 30 days |
 
 ---
 
