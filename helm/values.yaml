@@ -1,0 +1,43 @@
+# Global settings
+global:
+  appName: "shopnow-fe"       # Tên ứng dụng mặc định
+  namespace: "shopnow"        # Namespace mặc định
+  enabledComponents:
+    configmap: false          # Bật/tắt ConfigMap
+    service: true             # Bật/tắt Service
+    ingress: true             # Bật/tắt Ingress
+
+# Deployment
+image:
+  repository: "AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/shopnow-fe"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  pullSecret: "" # Secret để pull image từ private registry
+
+replicaCount: 1
+rollingUpdate:
+  maxSurge: 25%
+  maxUnavailable: 25%
+
+# Service
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+# Ingress (chỉ áp dụng nếu enabledComponents.ingress = true)
+ingress:
+  className: "alb"
+  host: "shopnow.com"
+  acmArn: ""
+  path: "/"
+  pathType: Prefix
+
+# ConfigMap (chỉ áp dụng nếu enabledComponents.configmap = true)
+configmap:
+  data: {}
+  # Ví dụ:
+  # data:
+  #   application.properties: |
+  #     server.port=8080
+  #     spring.datasource.url=jdbc:mysql://db-service:3306/mydb

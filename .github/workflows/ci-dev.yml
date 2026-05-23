@@ -1,5 +1,4 @@
-name: Deploy and test in AWS
-
+name: CI/CD — Development
 on:
   push:
     branches: ["develop"]
@@ -7,7 +6,6 @@ on:
 env:
   AWS_REGION: ap-southeast-3
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:dev_${{ github.sha }}
-  ROLE_ACCESS: arn:aws:iam::250830191861:role/github-fe-shopnow-role
   CONTAINER_NAME: ${{ github.event.repository.name }}
 
 permissions:
@@ -26,7 +24,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.ROLE_ACCESS }}
+          role-to-assume: ${{ secrets.ROLE_ACCESS_DEV }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to AWS ECR
@@ -48,7 +46,7 @@ jobs:
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ env.ROLE_ACCESS }}
+        role-to-assume: ${{ secrets.ROLE_ACCESS_DEV }}
         aws-region: ${{ env.AWS_REGION}}
     
     - name: Deploy on AWS with CloudWatch Logs

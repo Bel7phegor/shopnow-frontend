@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "template-shopnow.fullname" . }}-test-connection"
+  labels:
+    {{- include "template-shopnow.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "template-shopnow.fullname" . }}:{{ .Values.service.port }}']
+  restartPolicy: Never
