@@ -233,6 +233,12 @@ Required secrets for CI/CD pipeline:
 
 ## 5. DevSecOps Pipeline
 
+<div align="center">
+  <img src="img/DevSevOps-Flow.png" width="600">
+  <br>
+  Mô hình hóa quy trình DevSecOps
+</div>
+
 Pipeline automating build → security → deploy lifecycle via GitHub Actions.
 
 ### Development Pipeline
