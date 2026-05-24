@@ -4,14 +4,14 @@ kind: Ingress
 metadata:
   name: {{ .Values.global.appName }}-ingress
   namespace: {{ .Values.global.namespace }}
-  annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    {{- if .Values.ingress.acmArn }}
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.acmArn }}
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    {{- end }}
+  # annotations:
+  #   alb.ingress.kubernetes.io/scheme: internet-facing
+  #   alb.ingress.kubernetes.io/target-type: ip
+  #   {{- if .Values.ingress.acmArn }}
+  #   alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.acmArn }}
+  #   alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+  #   alb.ingress.kubernetes.io/ssl-redirect: '443'
+  #   {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
