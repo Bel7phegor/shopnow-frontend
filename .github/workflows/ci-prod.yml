@@ -203,7 +203,7 @@ jobs:
             -v $(pwd):/zap/wrk/:rw \
             zaproxy/zap-stable \
             zap-baseline.py \
-            -t "${{ secrets.URL_FE }}" \
+            -t https://"${{ secrets.URL_FE }}" \
             -r "${{ env.ZAP_REPORT }}.html" \
             --autooff || true
           sudo chown -R $(whoami):$(whoami) "${{ env.ZAP_REPORT }}.html"
@@ -233,7 +233,7 @@ jobs:
             --output-verbose \
             --scope-include-subdomains \
             --checks xss,sqli,csrf \
-            "${{ secrets.URL_FE }}" \
+            "https://${{ secrets.URL_FE }}" \
             --report-save-path=/arachni-temp/${{ env.ARACHNI_REPORT }}.afr
 
       - name: Generate HTML report
