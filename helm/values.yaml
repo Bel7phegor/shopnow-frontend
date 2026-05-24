@@ -14,6 +14,13 @@ image:
   pullPolicy: IfNotPresent
   pullSecret: "" # Secret để pull image từ private registry
 
+autoscaling:
+  enabled: true       # Bật HPA (Nếu chưa muốn dùng thì đổi thành false)
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
 replicaCount: 1
 rollingUpdate:
   maxSurge: 25%

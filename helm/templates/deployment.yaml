@@ -4,7 +4,9 @@ metadata:
   name: {{ .Values.global.appName }}-deployment
   namespace: {{ .Values.global.namespace }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.global.appName }}
@@ -23,7 +25,7 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /app/src/main/resources/application.properties
-      {{- end }}
+          {{- end }}
       
       {{- if .Values.image.pullSecret }}
       imagePullSecrets:
