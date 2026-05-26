@@ -232,40 +232,39 @@ jobs:
           path: ${{ env.ZAP_REPORT }}.html
           retention-days: 30
 
-  arachni-scan:
-    name: Arachni — Website Scan
+  arachni-website-scan:
+    name: Arachni Website Security Scan
     runs-on: ubuntu-latest
     needs: deploy
     environment: production
-    continue-on-error: true
 
     steps:
-      - run: mkdir -p arachni-temp
+    - name: Prepare temp folder
+      run: mkdir -p arachni-temp
 
-      - name: Run Arachni scan (passive only)
-        run: |
-          docker run --rm \
-            -v $(pwd)/arachni-temp/:/arachni-temp/ \
-            arachni/arachni:latest \
-            /usr/local/arachni/bin/arachni \
-            --output-verbose \
-            --scope-include-subdomains \
-            --checks xss,sqli,csrf \
-            https://"${{ secrets.URL_FE }}" \
-            --report-save-path=/arachni-temp/${{ env.ARACHNI_REPORT }}.afr
-
-      - name: Generate HTML report
-        run: |
-          docker run --rm \
-            -v $(pwd)/arachni-temp/:/arachni-temp/ \
-            arachni/arachni:latest \
-            /usr/local/arachni/bin/arachni_reporter \
-            /arachni-temp/${{ env.ARACHNI_REPORT }}.afr \
-            --reporter=html:outfile=/arachni-temp/${{ env.ARACHNI_REPORT }}.html.zip
-          sudo chown -R $(whoami):$(whoami) ./arachni-temp/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: arachni-report
-          path: arachni-temp/${{ env.ARACHNI_REPORT }}.html.zip
-          retention-days: 30
+    - name: Run Arachni scan
+      run: |
+        docker run --rm \
+          -v $(pwd)/arachni-temp/:/arachni-temp/ \
+          arachni/arachni:latest \
+          /usr/local/arachni/bin/arachni \
+          --output-verbose \
+          --scope-include-subdomains \
+          "https://${{ secrets.URL_FE }}" \
+          --report-save-path=/arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.afr
+    - name: Generate Arachni HTML report
+      run: |
+        docker run --rm \
+          -v $(pwd)/arachni-temp/:/arachni-temp/ \
+          arachni/arachni:latest \
+          /usr/local/arachni/bin/arachni_reporter \
+          /arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.afr \
+          --reporter=html:outfile=/arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
+        sudo chown -R $(whoami):$(whoami) ./arachni-temp/
+    - name: Upload Arachni report
+      uses: actions/upload-artifact@v4
+      with:
+        name: arachni-website-report
+        path: arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
+        retention-days: 30
+        
