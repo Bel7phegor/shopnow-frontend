@@ -17,7 +17,7 @@ env:
   SNYKSCAN_REPORT:        "snyk_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   TRIVYFS_REPORT:         "trivy_fs_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   TRIVY_IMAGE_REPORT:     "trivy_img_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
-  ARACHNI_REPORT:         "arachni_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
+  ARACHNI_WEBSITE_REPORT:         "arachni_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   ZAP_REPORT:             "zap_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
 
 permissions:
@@ -29,7 +29,6 @@ jobs:
   build:
     name: Build & Push ECR
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +111,6 @@ jobs:
     name: Trivy — Image Scan
     runs-on: ubuntu-latest
     needs: [build, trivy-fs-scan]
-    environment: production
 
     steps:
       - uses: actions/checkout@v4
