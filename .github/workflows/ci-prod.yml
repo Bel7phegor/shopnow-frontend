@@ -9,7 +9,6 @@ env:
   AWS_REGION:    ap-southeast-3
   NAMESPACE:     shopnow
   EKS_CLUSTER:   shopnow-prod-eks
-  ECR_REGISTRY:  ${{ secrets.ECR_REGISTRY }}
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:${{ github.ref_name }}_${{ github.sha }}
   HELM_RELEASE:  ${{ github.event.repository.name }}
 
@@ -43,7 +42,7 @@ jobs:
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
       - name: Build & push
         run: |
@@ -121,8 +120,7 @@ jobs:
 
       - name: Login to ECR & pull image
         run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
           docker pull ${{ env.IMAGE_VERSION }}
 
       - name: Scan image
@@ -186,7 +184,7 @@ jobs:
             --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
             --set global.appName=${{ env.HELM_RELEASE }} \
-            --set image.repository=${{ env.ECR_REGISTRY }}/${{ github.event.repository.name }} \
+            --set image.repository=${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }} \
             --set image.tag=${{ github.ref_name }}_${{ github.sha }} \
             --set ingress.host=${{ secrets.URL_FE }} \
             --set ingress.acmArn=${{ secrets.ACM_CERT_ARN }} \
