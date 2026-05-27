@@ -19,7 +19,6 @@ React-based e-commerce frontend deployed on AWS with enterprise-grade CI/CD auto
   - [4. Repository Structure \& Build Management](#4-repository-structure--build-management)
     - [Dockerfile Strategy](#dockerfile-strategy)
     - [Docker Image Management](#docker-image-management)
-    - [GitHub Secrets Configuration](#github-secrets-configuration)
   - [5. DevSecOps Pipeline](#5-devsecops-pipeline)
     - [Development Pipeline](#development-pipeline)
     - [Production Pipeline](#production-pipeline)
@@ -27,20 +26,16 @@ React-based e-commerce frontend deployed on AWS with enterprise-grade CI/CD auto
     - [Dynamic Security Testing](#dynamic-security-testing)
   - [6. Monitoring \& Operations](#6-monitoring--operations)
     - [CloudWatch Logs](#cloudwatch-logs)
-    - [Health Checks](#health-checks)
   - [7. Tech Stack](#7-tech-stack)
     - [Frontend](#frontend)
     - [DevOps \& Infrastructure](#devops--infrastructure)
     - [Security \& Scanning](#security--scanning)
-  - [8. Getting Started](#8-getting-started)
-    - [Deploy to Development](#deploy-to-development)
-    - [Deploy to Production](#deploy-to-production)
-  - [9. Implementation Evidence](#9-implementation-evidence)
+  - [8. Implementation Evidence](#8-implementation-evidence)
     - [CI/CD Pipeline Execution](#cicd-pipeline-execution)
     - [Dockerfile](#dockerfile)
     - [Infrastructure as Code](#infrastructure-as-code)
     - [Security Scanning Reports](#security-scanning-reports)
-  - [10. Contact Information](#10-contact-information)
+  - [9. Contact Information](#9-contact-information)
 
 </details>
 
@@ -95,7 +90,7 @@ The frontend is deployed across AWS infrastructure with separation of concerns:
 
 ## 3. Network & Security (Terraform IaC)
 
-All infrastructure is defined as code in [shopnow-infa](https://github.com/Bel7phegor/shopnow-infa) repository using Terraform. This section outlines the network topology and security configuration provisioned for both environments.
+All infrastructure is defined as code in [github.com/Bel7phegor/shopnow-infa](https://github.com/Bel7phegor/shopnow-infa) repository using Terraform. This section outlines the network topology and security configuration provisioned for both environments.
 
 ### Development Infrastructure
 
@@ -120,9 +115,7 @@ vpc_cidr                 = "10.0.0.0/16"
 single_nat_gateway       = false  # Multi-AZ NAT for HA
 enable_eks               = true   # EKS cluster
 enable_bastion           = true   # Bastion host
-enable_github_runner     = true   # fe-runner-prod label
-github_runner_label      = "fe-runner-prod"
-nodegroup_desired_size   = 2
+nodegroup_desired_size   = 3
 nodegroup_max_size       = 4
 nodegroup_instance_types = ["t3.medium"]
 ```
@@ -214,29 +207,12 @@ FROM nginx:alpine
   - AWS Elastic Container Registry (ECR) as primary storage
   - Private repository, access via IAM roles
 
-### GitHub Secrets Configuration
-
-Required secrets for CI/CD pipeline:
-
-| Secret | Purpose | Example |
-|--------|---------|---------|
-| `ECR_REGISTRY` | AWS ECR repository URI | `250830191861.dkr.ecr.ap-southeast-3.amazonaws.com` |
-| `REACT_APP_BASE_API_URL` | Backend API URL (dev) | `https://api-dev.anphuc.site` |
-| `REACT_APP_BASE_API_URL_PROD` | Backend API URL (prod) | `https://api.sneaker.anphuc.site` |
-| `SNYK_TOKEN` | Snyk vulnerability scanner | `snyk-**** (from Snyk dashboard)` |
-| `FE_PORT` | Frontend container port | `3000:80` |
-| `URL_FE` | Frontend URL for DAST scanning | `https://shopnow-prod.anphuc.site` |
-| `ROLE_ACCESS` | AWS IAM role ARN (dev) | `arn:aws:iam::ACCOUNT:role/github-fe-shopnow-role` |
-| `ROLE_ACCESS_PROD` | AWS IAM role ARN (prod) | `arn:aws:iam::ACCOUNT:role/github-fe-shopnow-prod-role` |
-
----
-
 ## 5. DevSecOps Pipeline
 
 <div align="center">
   <img src="img/DevSevOps-Flow.png" width="600">
   <br>
-  Mô hình hóa quy trình DevSecOps
+  DevSecOps workflows
 </div>
 
 Pipeline automating build → security → deploy lifecycle via GitHub Actions.
@@ -262,12 +238,11 @@ dev:
 **Deployment:** `docker run` on EC2 instance with:
 - CloudWatch Logs driver (log group: `/ec2/shopnow-frontend`)
 - Auto-restart policy (`--restart unless-stopped`)
-- Port mapping from `3000` → `${FE_PORT}` (e.g., `80`)
+- Port mapping from `80` → `${FE_PORT}` (e.g., `80`)
 
 ### Production Pipeline
 
 **Trigger:** `push` → `release` branch OR `tags` → `v*`
-**Runner:** `self-hosted, fe-runner-prod` (EC2 in private subnet)
 
 ```yaml
 prod:
@@ -343,19 +318,6 @@ prod:
 * **Retention:** 30 days
 * **Filter & Alert:** Custom metrics based on error patterns (4xx/5xx errors)
 
-### Health Checks
-
-**Development (EC2-based):**
-- Manual health check script (e.g., `curl http://localhost:3000`)
-- Runner monitors container status
-
-**Production (K8s-based):**
-- Liveness Probe: `/health` endpoint (checks if pod is alive)
-- Readiness Probe: `/ready` endpoint (checks if pod can serve traffic)
-- Service discovers healthy pods automatically
-
----
-
 ## 7. Tech Stack
 
 ### Frontend
@@ -385,41 +347,7 @@ prod:
 
 ---
 
-## 8. Getting Started
-
-### Deploy to Development
-
-```bash
-# Push to develop branch
-git checkout develop
-git commit -m "Feature: Add new component"
-git push origin develop
-
-# Pipeline automatically triggers:
-# - Build Docker image
-# - Push to ECR (dev_${SHA})
-# - Deploy to dev runner
-```
-
-### Deploy to Production
-
-```bash
-# Create release and tag version
-git checkout release
-git merge develop
-git tag v1.1.0
-git push origin release --tags
-
-# Pipeline automatically triggers:
-# - Security scanning (Snyk + Trivy)
-# - Build Docker image
-# - Deploy with rolling update on EKS
-# - DAST scanning (Arachni + ZAP)
-```
-
----
-
-## 9. Implementation Evidence
+## 8. Implementation Evidence
 
 ### CI/CD Pipeline Execution
 
@@ -483,7 +411,7 @@ All scanning **reports** are generated and retained for compliance:
 
 ---
 
-## 10. Contact Information
+## 9. Contact Information
 
 **Author:** Bel7phegor (Nguyễn An Phúc)
 
