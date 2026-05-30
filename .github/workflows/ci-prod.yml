@@ -166,7 +166,7 @@ jobs:
           helm upgrade --install ${{ env.HELM_RELEASE }} ./helm \
             --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
-            --set fullnameOverride=${{ env.HELM_RELEASE }} \ 
+            --set fullnameOverride=${{ env.HELM_RELEASE }} \
             --set image.repository=${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }} \
             --set image.tag=${{ github.ref_name }}_${{ github.sha }} \
             --set ingress.host=${{ secrets.URL_FE }} \
@@ -177,7 +177,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/${{ env.HELM_RELEASE }}-deployment \ 
+          kubectl rollout status deployment/${{ env.HELM_RELEASE }}-deployment \
             -n ${{ env.NAMESPACE }} \
             --timeout=300s
 
