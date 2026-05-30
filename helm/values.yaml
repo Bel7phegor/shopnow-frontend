@@ -45,7 +45,7 @@ service:
 
 # Ingress (chỉ áp dụng nếu enabledComponents.ingress = true)
 ingress:
-  className: "alb"
+  className: "nginx"
   host: "shopnow.com"
   acmArn: ""
   path: "/"
