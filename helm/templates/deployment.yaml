@@ -1,32 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.global.appName }}-deployment
+  name: {{ include "template-project.deploymentName" . }}
   namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "template-project.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ .Values.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
   selector:
     matchLabels:
-      app: {{ .Values.global.appName }}
+      {{- include "template-project.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ .Values.global.appName }}
+        {{- include "template-project.selectorLabels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "template-project.serviceAccountName" . }}
       containers:
-        - name: {{ .Values.global.appName }}
+        - name: {{ .Chart.Name }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
+
+          # secret
+          {{- if .Values.global.enabledComponents.secrets }}
+          envFrom:
+            - secretRef:
+                name: {{ include "template-project.secretName" . }}
+          {{- end }}
+          # configmap
           {{- if .Values.global.enabledComponents.configmap }}
           volumeMounts:
             - name: config-volume
               mountPath: /app/src/main/resources/application.properties
+              subPath: application.properties
           {{- end }}
-      
       {{- if .Values.image.pullSecret }}
       imagePullSecrets:
         - name: {{ .Values.image.pullSecret }}
@@ -36,5 +50,5 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: {{ .Values.global.appName }}-configmap
+            name: {{ include "template-project.configmapName" . }}
       {{- end }}

@@ -2,16 +2,16 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Values.global.appName }}-ingress
+  name: {{ include "template-project.ingressName" . }}
   namespace: {{ .Values.global.namespace }}
-  # annotations:
-  #   alb.ingress.kubernetes.io/scheme: internet-facing
-  #   alb.ingress.kubernetes.io/target-type: ip
-  #   {{- if .Values.ingress.acmArn }}
-  #   alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.acmArn }}
-  #   alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
-  #   alb.ingress.kubernetes.io/ssl-redirect: '443'
-  #   {{- end }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    {{- if .Values.ingress.acmArn }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.acmArn }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
@@ -22,7 +22,7 @@ spec:
             pathType: {{ .Values.ingress.pathType }}
             backend:
               service:
-                name: {{ .Values.global.appName }}-service
+                name: {{ include "template-project.serviceName" . }}
                 port:
                   number: {{ .Values.service.port }}
 {{- end }}

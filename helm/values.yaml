@@ -1,12 +1,23 @@
 # Global settings
 global:
-  appName: "shopnow-fe"       # Tên ứng dụng mặc định
+  appName: "shopnow-frontend"       # Tên ứng dụng mặc định
   namespace: "shopnow"        # Namespace mặc định
   enabledComponents:
-    configmap: false          # Bật/tắt ConfigMap
+    secrets: false
+    configmap: true          # Bật/tắt ConfigMap
     service: true             # Bật/tắt Service
     ingress: true             # Bật/tắt Ingress
 
+nameOverride: ""
+fullnameOverride: ""
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
 # Deployment
 image:
   repository: "AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/shopnow-fe"
@@ -15,7 +26,7 @@ image:
   pullSecret: "" # Secret để pull image từ private registry
 
 autoscaling:
-  enabled: true       # Bật HPA (Nếu chưa muốn dùng thì đổi thành false)
+  enabled: true       # Bật HPA 
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 80
@@ -34,7 +45,7 @@ service:
 
 # Ingress (chỉ áp dụng nếu enabledComponents.ingress = true)
 ingress:
-  className: "nginx"
+  className: "alb"
   host: "shopnow.com"
   acmArn: ""
   path: "/"
@@ -42,9 +53,20 @@ ingress:
 
 # ConfigMap (chỉ áp dụng nếu enabledComponents.configmap = true)
 configmap:
+  name: "application-properties"
   data: {}
   # Ví dụ:
   # data:
   #   application.properties: |
   #     server.port=8080
   #     spring.datasource.url=jdbc:mysql://db-service:3306/mydb
+
+secrets:
+  type: "Opaque"
+  stringData: {}
+
+serviceAccount:
+  create: false
+  annotations: {}
+  automount: true
+  name: ""
