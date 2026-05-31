@@ -16,22 +16,24 @@ env:
   SNYKSCAN_REPORT:        "snyk_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   TRIVYFS_REPORT:         "trivy_fs_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   TRIVY_IMAGE_REPORT:     "trivy_img_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
-  ARACHNI_WEBSITE_REPORT:         "arachni_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
+  ARACHNI_WEBSITE_REPORT: "arachni_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   ZAP_REPORT:             "zap_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
 
 permissions:
   id-token: write
   contents: read
   pull-requests: write
-jobs:
 
+jobs:
+  # OPTIMIZED JOB 1: BUILD & PUSH WITH DOCKER LAYER CACHING
   build:
     name: Build & Push ECR
     runs-on: ubuntu-latest
     environment: production 
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -39,27 +41,40 @@ jobs:
           role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR
-        run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push
-        run: |
-          docker build \
-            --network=host \
-            --build-arg REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }} \
-            -t ${{ env.IMAGE_VERSION }} \
-            .
-          docker push ${{ env.IMAGE_VERSION }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  # JOB 2, 3, 4: Security scan
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          network: host
+          build-args: |
+            REACT_APP_BASE_API_URL=${{ secrets.REACT_APP_BASE_API_URL }}
+          tags: ${{ env.IMAGE_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # OPTIMIZED JOB 2: SECURITY SCAN WITH NPM CACHE
   snyk-scan:
     name: Snyk — Source Code Scan
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Node Modules for Snyk
+        uses: actions/cache@v4
+        with:
+          path: .npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Run Snyk scan
         run: |
@@ -68,7 +83,7 @@ jobs:
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
-              npm install --ignore-scripts
+              npm install --cache /app/.npm --ignore-scripts
               snyk test --all-projects --json > snyk_result.json || true
               npm install -g snyk-to-html
               snyk-to-html -i snyk_result.json -o ${{ env.SNYKSCAN_REPORT }}.html
@@ -245,4 +260,3 @@ jobs:
         name: arachni-website-report
         path: arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
         retention-days: 30
-        
