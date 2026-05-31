@@ -140,9 +140,8 @@ class App extends Component {
         <div className="header-top">
           <div>
             <a href="https://anphuc.site/" target="_blank">Kênh bản quyền</a>
-            <a href="https://anphuc.site/contact/" target="_blank">Trở thành người đóng góp</a>
-            <a href="https://anphuc.site/blog/" target="_blank">Tài liệu tham khảo</a>
-            <a href="https://m.me/139689492555066" target="_blank">Liên hệ</a>
+            <a href="https://anphuc.site/blog" target="_blank">Tài liệu tham khảo</a>
+            <a href="https://anphuc.site/contact" target="_blank">Liên hệ</a>
           </div>
           <div>
             <a href="#"><Notifications /></a>

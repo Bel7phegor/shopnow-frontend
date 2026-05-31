@@ -262,10 +262,10 @@ export default function Home() {
           <Col md={4} className="mb-3">
             <h5>Follow Us</h5>
             <div className="d-flex gap-3">
-              <a href="https://www.facebook.com/groups/anphuc.site" target="_blank" rel="noopener noreferrer" className="text-dark">
-                <Facebook />
+              <a href="https://www.facebook.com/anphuc1203/" target="_blank" rel="noopener noreferrer" className="text-dark">
+                <Facebook />  
               </a>
-              <a href="https://www.youtube.com/@devopseduvn" target="_blank" rel="noopener noreferrer" className="text-dark">
+              <a href="https://www.youtube.com/@anphucnetworks" target="_blank" rel="noopener noreferrer" className="text-dark">
                 <YouTube />
               </a>
             </div>
