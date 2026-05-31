@@ -203,11 +203,11 @@ Detailed compliance scanning data is automatically exported into readable HTML f
 
 | Assessment Domain | Scanner Tool | Live Artifact / Workflow Run Link |
 | :--- | :--- | :--- |
-| **Third-Party Dependencies** | Snyk SAST | [Snyk Scan Report Artifact](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054479523) |
-| **Repository Secret Leakage**| Trivy FS | [Trivy Filesystem Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054460074) |
-| **Container OS Vulnerabilities**| Trivy Image | [Trivy Container Layer Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054474332) |
-| **Web Application Security** | OWASP ZAP | [ZAP Dynamic Baseline Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054574910) |
-| **Dynamic Penetration Test** | Arachni | [Arachni Dynamic Scan ZIP Archive](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26025690453/artifacts/7054573714) |
+| **Third-Party Dependencies** | Snyk SAST | [Snyk Scan Report Artifact](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847) |
+| **Repository Secret Leakage**| Trivy FS | [Trivy Filesystem Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319309333) |
+| **Container OS Vulnerabilities**| Trivy Image | [Trivy Container Layer Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319327430) |
+| **Web Application Security** | OWASP ZAP | [ZAP Dynamic Baseline Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319340250) |
+| **Dynamic Penetration Test** | Arachni | [Arachni Dynamic Scan ZIP Archive](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319341287) |
 
 ---
 
