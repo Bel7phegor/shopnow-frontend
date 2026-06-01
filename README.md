@@ -35,6 +35,12 @@ React-based e-commerce frontend deployed on AWS with enterprise-grade CI/CD auto
 
 The frontend architecture is designed with strict separation of concerns, high availability, and network isolation using Terraform IaC.
 
+<div align="center">
+  <img src="img/AWS-Architecture.png" width="650" alt="DevSecOps Workflow Architecture">
+  <br>
+  <em>AWS Architecture Modeling</em>
+</div>
+
 * **Compute Layer:** Containerized React SPA deployed on **AWS EKS (Kubernetes)** for Production (multi-pod auto-scaling) and **AWS EC2 ASG** for Development.
 * **Traffic Routing:** Internal and external traffic managed via AWS Load Balancer Controller (ALB) terminating HTTPS via AWS Certificate Manager (ACM).
 * **Network Isolation (Private/Public Subnets):**
