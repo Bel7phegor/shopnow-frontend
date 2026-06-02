@@ -1,0 +1,189 @@
+stages:
+  - test
+  - build
+  - deploy
+  - post-deploy-scan
+
+variables:
+  AWS_REGION: "ap-southeast-3"
+  NAMESPACE: "shopnow"
+  EKS_CLUSTER: "shopnow-prod-eks"
+  # Chuyển đổi các biến môi trường từ GitHub sang cú pháp GitLab CI
+  IMAGE_VERSION: "${ECR_REGISTRY}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}_${CI_COMMIT_SHORT_SHA}"
+  HELM_RELEASE: "${CI_PROJECT_NAME}"
+  
+  # Cấu hình tên file báo cáo bảo mật
+  SNYKSCAN_REPORT: "snyk_${CI_PROJECT_NAME}_${CI_COMMIT_TAG}_${CI_COMMIT_SHA}"
+  TRIVYFS_REPORT: "trivy_fs_${CI_PROJECT_NAME}_${CI_COMMIT_TAG}_${CI_COMMIT_SHA}"
+  TRIVY_IMAGE_REPORT: "trivy_img_${CI_PROJECT_NAME}_${CI_COMMIT_TAG}_${CI_COMMIT_SHA}"
+  ARACHNI_WEBSITE_REPORT: "arachni_${CI_PROJECT_NAME}_${CI_COMMIT_TAG}_${CI_COMMIT_SHA}"
+  ZAP_REPORT: "zap_${CI_PROJECT_NAME}_${CI_COMMIT_TAG}_${CI_COMMIT_SHA}"
+
+# Cấu hình mặc định áp dụng cho toàn bộ pipeline
+default:
+  id_tokens:
+    # Khởi tạo JWT Token để thực hiện cơ chế xác thực OIDC tương tự GitHub Actions
+    AWS_JWT_TOKEN:
+      aud: https://gitlab.com
+  before_script:
+    - mkdir -p ~/.aws
+    - echo "Initializing AWS session via OIDC Web Identity..."
+    - |
+      if [ -n "$AWS_JWT_TOKEN" ] && [ -n "$TERRAFORM_ROLE_ARN_PROD" ]; then
+        ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
+          --role-arn "$TERRAFORM_ROLE_ARN_PROD" \
+          --role-session-name "GitLabCI-${CI_PIPELINE_ID}" \
+          --web-identity-token "$AWS_JWT_TOKEN" \
+          --duration-seconds 3600 \
+          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+          --output text)
+        export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+        export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+        export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+        export AWS_DEFAULT_REGION="$AWS_REGION"
+      fi
+
+# Định nghĩa điều kiện kích hoạt (Chỉ chạy khi push Git Tag có tiền tố v*)
+.prod_tag_rules:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+
+# STAGE 1: Kiểm tra an toàn mã nguồn tĩnh (Static Application Security Testing)
+snyk-code-scan:
+  stage: test
+  image: node:18-alpine
+  extends: .prod_tag_rules
+  before_script:
+    - npm install -g snyk
+  script:
+    - snyk auth "$SNYK_TOKEN"
+    - snyk test --json > "${SNYKSCAN_REPORT}.json" || true
+  artifacts:
+    name: "snyk-report"
+    paths:
+      - "${SNYKSCAN_REPORT}.json"
+    expire_in: 30 days
+  allow_failure: true
+
+trivy-fs-scan:
+  stage: test
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  extends: .prod_tag_rules
+  script:
+    - trivy fs --format json --output "${TRIVYFS_REPORT}.json" .
+  artifacts:
+    name: "trivy-fs-report"
+    paths:
+      - "${TRIVYFS_REPORT}.json"
+    expire_in: 30 days
+  allow_failure: true
+
+# STAGE 2: Đóng gói Container Image và đẩy lên AWS ECR
+build-and-push-ecr:
+  stage: build
+  image: amazon/aws-cli:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  extends: .prod_tag_rules
+  script:
+    # Cài đặt Docker CLI bên trong container AWS CLI để build
+    - amazon-linux-extras install docker -y || yum install docker -y
+    - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    - docker build --build-arg REACT_APP_BASE_API_URL="$REACT_APP_BASE_API_URL" -t "$IMAGE_VERSION" .
+    - docker push "$IMAGE_VERSION"
+
+trivy-image-scan:
+  stage: build
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs:
+    - build-and-push-ecr
+  extends: .prod_tag_rules
+  script:
+    - trivy image --format json --output "${TRIVY_IMAGE_REPORT}.json" "$IMAGE_VERSION"
+  artifacts:
+    name: "trivy-image-report"
+    paths:
+      - "${TRIVY_IMAGE_REPORT}.json"
+    expire_in: 30 days
+  allow_failure: true
+
+# STAGE 3: Triển khai ứng dụng lên Amazon EKS sử dụng Helm
+deploy-to-eks:
+  stage: deploy
+  image: alpine/k8s:1.30.0
+  extends: .prod_tag_rules
+  environment:
+    name: production
+  script:
+    - aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER"
+    - helm repo add shopnow-charts "$HELM_REPO_URL" || true
+    - helm repo update
+    - |
+      helm upgrade --install "$HELM_RELEASE" shopnow-charts/shopnow-app \
+        --namespace "$NAMESPACE" \
+        --create-namespace \
+        --set image.repository="${ECR_REGISTRY}/${CI_PROJECT_NAME}" \
+        --set image.tag="${CI_COMMIT_TAG}_${CI_COMMIT_SHORT_SHA}" \
+        --values environments/prod/values.yaml
+
+# STAGE 4: Quét bảo mật động sau triển khai (Dynamic Application Security Testing)
+arachni-website-scan:
+  stage: post-deploy-scan
+  image: docker:latest
+  services:
+    - docker:dind
+  needs:
+    - deploy-to-eks
+  extends: .prod_tag_rules
+  environment:
+    name: production
+  script:
+    - mkdir -p arachni-temp
+    - |
+      docker run --rm \
+        -v $(pwd)/arachni-temp/:/arachni-temp/ \
+        arachni/arachni:latest \
+        /usr/local/arachni/bin/arachni \
+        --output-verbose \
+        --scope-include-subdomains \
+        "https://${URL_FE}" \
+        --report-save-path=/arachni-temp/${ARACHNI_WEBSITE_REPORT}.afr
+    - |
+      docker run --rm \
+        -v $(pwd)/arachni-temp/:/arachni-temp/ \
+        arachni/arachni:latest \
+        /usr/local/arachni/bin/arachni_reporter \
+        /arachni-temp/${ARACHNI_WEBSITE_REPORT}.afr \
+        --reporter=html:outfile=/arachni-temp/${ARACHNI_WEBSITE_REPORT}.html
+  artifacts:
+    name: "arachni-report"
+    paths:
+      - "arachni-temp/${ARACHNI_WEBSITE_REPORT}.html"
+    expire_in: 30 days
+  allow_failure: true
+
+owasp-zap-scan:
+  stage: post-deploy-scan
+  image: ghcr.io/zaproxy/zaproxy:stable
+  needs:
+    - deploy-to-eks
+  extends: .prod_tag_rules
+  environment:
+    name: production
+  script:
+    - mkdir -p zap-temp
+    - zap-baseline.py -t "https://${URL_FE}" -g gen.conf -r "${ZAP_REPORT}.html" || true
+    - cp "/zap/${ZAP_REPORT}.html" ./zap-temp/
+  artifacts:
+    name: "zap-report"
+    paths:
+      - "zap-temp/${ZAP_REPORT}.html"
+    expire_in: 30 days
+  allow_failure: true
