@@ -1,6 +1,6 @@
 # ShopNow Frontend: React E-Commerce with AWS Infrastructure & DevSecOps Pipeline
 
-React-based e-commerce frontend deployed on AWS with enterprise-grade CI/CD automation, Docker containerization, and comprehensive security scanning across multi-cloud environments.
+React-based e-commerce frontend deployed on AWS with a complete DevSecOps CI/CD pipeline, Helm, Docker containerization, and multi-environment deployment (Development & Production).
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
@@ -16,16 +16,17 @@ React-based e-commerce frontend deployed on AWS with enterprise-grade CI/CD auto
     - [4.2. Workflow Lifecycles](#42-workflow-lifecycles)
       - [A. Development Pipeline (`ci-dev.yml`)](#a-development-pipeline-ci-devyml)
       - [B. Production Pipeline (`ci-prod.yml`)](#b-production-pipeline-ci-prodyml)
-    - [4.3. Advanced Kubernetes Templating with Helm](#43-advanced-kubernetes-templating-with-helm)
-  - [5. Tech Stack Matrix](#5-tech-stack-matrix)
-  - [6. Compliance \& Implementation Evidence](#6-compliance--implementation-evidence)
-    - [6.1. CI/CD Pipeline Automation (Pipeline Execution)](#61-cicd-pipeline-automation-pipeline-execution)
-    - [6.2. System Traffic Routing Configuration (Traffic Routing)](#62-system-traffic-routing-configuration-traffic-routing)
-    - [6.3. Multi-Environment Log Management (CloudWatch Logs)](#63-multi-environment-log-management-cloudwatch-logs)
-    - [6.4. Container Image Storage (Private Registry)](#64-container-image-storage-private-registry)
-    - [6.5. Application User Interface \& SSL Security (User Interface \& HTTPS)](#65-application-user-interface--ssl-security-user-interface--https)
-    - [6.6. Comprehensive Security Scan Reports](#66-comprehensive-security-scan-reports)
-  - [7. Contact \& Project Context](#7-contact--project-context)
+    - [4.3. Kubernetes Templating with Helm](#43-kubernetes-templating-with-helm)
+  - [5. Design Decisions \& Trade-offs](#5-design-decisions--trade-offs)
+  - [6. Tech Stack Matrix](#6-tech-stack-matrix)
+  - [7. Implementation Evidence \& Screenshots](#7-implementation-evidence--screenshots)
+    - [7.1. CI/CD Pipeline Execution](#71-cicd-pipeline-execution)
+    - [7.2. Traffic Routing (ALB)](#72-traffic-routing-alb)
+    - [7.3. Log Management (CloudWatch)](#73-log-management-cloudwatch)
+    - [7.4. Container Registry (ECR)](#74-container-registry-ecr)
+    - [7.5. Live Application (HTTPS)](#75-live-application-https)
+    - [7.6. Security Scan Reports](#76-security-scan-reports)
+  - [8. Contact \& Project Context](#8-contact--project-context)
 
 </details>
 
@@ -130,12 +131,44 @@ The pipelines utilize a **Shift-Left Security** approach, embedding automated vu
    * **Arachni Penetration Testing:** Executes dynamic security testing across subdomains.
 
 
-### 4.3. Advanced Kubernetes Templating with Helm
-To maintain high reusability and clean infrastructure-as-code blueprints across separate environments, the Kubernetes manifests for this application are fully parameterized via the global [Bel7phegor/templates-helm-k8s](https://github.com/Bel7phegor/templates-helm-k8s) centralized repository.
+### 4.3. Kubernetes Templating with Helm
 
-* **Centralized Logic:** Instead of hardcoding YAML manifests per repository, a reusable Helm base template governs deployments, multi-AZ ingress routing, cluster IP allocations, and Horizontal Pod Autoscalers (HPA).
-* **Decoupled Values Configuration:** The `values.yaml` inside the `shopnow-helm` subsystem overrides this master layout, injecting target variables unique to the production or staging boundaries during the execution of `helm upgrade --install`.
-## 5. Tech Stack Matrix
+The Kubernetes manifests for this service are defined as a Helm chart in the [`helm/`](./helm) directory of this repo. During deployment, the CI pipeline runs:
+
+```bash
+helm upgrade --install shopnow-frontend ./helm \
+  --namespace shopnow \
+  --create-namespace \
+  --set fullnameOverride=shopnow-frontend \
+  --set image.repository=<ECR_REGISTRY>/shopnow-frontend \
+  --set image.tag=<TAG>_<SHA> \
+  --set ingress.host=<FRONTEND_DOMAIN> \
+  --set ingress.acmArn=<ACM_CERT_ARN> \
+  --atomic --wait
+```
+
+- Rather than maintaining separate `values-dev.yaml` / `values-prod.yaml` files, environment-specific configuration (image tag, ingress host, ACM certificate ARN) is injected at deploy time directly from GitHub Actions secrets via `--set` flags. This keeps the chart itself environment-agnostic while the CI workflow decides what gets deployed where.
+
+- `--atomic --wait` ensures that if the rollout fails health checks within the timeout, Helm automatically rolls back to the previous release — avoiding a broken deployment staying live in production.
+
+The chart structure follows the reusable template defined in [Bel7phegor/templates-helm-k8s](https://github.com/Bel7phegor/templates-helm-k8s) (Deployment, Service, Ingress, HPA), adapted here for the frontend service's specific needs (Nginx-served static build, single container port 80).
+
+
+## 5. Design Decisions & Trade-offs
+
+A few key infrastructure choices and the reasoning behind them:
+
+- **EC2 (Dev) vs. EKS (Prod):** Development uses a single EC2 instance with direct `docker run` deployment — fast and cheap to iterate on. Production runs on EKS to get rolling updates, self-healing pods, and horizontal autoscaling under real traffic. Running EKS for dev as well would add unnecessary cost for an environment that doesn't need HA.
+
+- **Single NAT (Dev) vs. Multi-AZ NAT (Prod):** A single NAT Gateway in dev keeps cost down since downtime there only affects testing. Production uses NAT Gateways across multiple AZs so an AZ failure doesn't cut off outbound connectivity for the cluster.
+
+- **OIDC over static AWS credentials:** GitHub Actions assumes short-lived IAM roles via OIDC instead of storing long-lived AWS access keys as secrets — removes a major credential-leak risk in the pipeline.
+
+- **Manual tag-based promotion to Production:** Dev deploys automatically on every push to `develop` for fast feedback. Production only deploys on an explicit version tag (`v*`), giving a manual gate before changes reach the live environment.
+
+- **Security gates split into pre-deploy (SAST/FS/image scan) and post-deploy (DAST):** Static/dependency scans run before the image is built/pushed to catch issues early (shift-left), while ZAP/Arachni run against the live URL after deployment to catch runtime/configuration issues that static scans can't see.
+
+## 6. Tech Stack Matrix
 
 | Layer | Technologies & Tools |
 | :--- | :--- |
@@ -146,78 +179,78 @@ To maintain high reusability and clean infrastructure-as-code blueprints across 
 
 ---
 
-## 6. Compliance & Implementation Evidence
+## 7. Implementation Evidence & Screenshots
 
-The technical evidence below logs the actual operation, deployment metrics, and security assessment results of the Frontend component running on AWS.
+The screenshots and links below show the pipeline, infrastructure, and security scans actually running for this project.
 
-### 6.1. CI/CD Pipeline Automation (Pipeline Execution)
+### 7.1. CI/CD Pipeline Execution
 
-**Live Workflows Tracker:** Check [GitHub Actions Production Workflow](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26713547479) Runs for real-time compliance validation.
+**Live Workflow Runs:** [GitHub Actions Production Workflow](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26713547479)
 
 <div align="center">
   <img src="img/pipeline-success.png" width="650" alt="GitHub Actions Pipeline Success Status">
   <br>
-  <em>GitHub Actions automated execution of the end-to-end Build, Test, and Deploy workflow</em>
+  <em>End-to-end Build, Scan, and Deploy workflow completing successfully</em>
 </div> <br>
 
-**Technical Description:** The pipeline workflow is triggered automatically following a Shift-Left security architecture. All package assembly phases and parallel security validation gates display a successful "Passed" status before completing the final infrastructure update.
+The pipeline runs the build, parallel security scans, and deployment stages in sequence, with the deploy step only proceeding once all security gates pass.
 
-### 6.2. System Traffic Routing Configuration (Traffic Routing)
+### 7.2. Traffic Routing (ALB)
 <div align="center">
   <img src="img/alb-routing.png" width="650" alt="AWS Application Load Balancer Path Routing">
   <br>
-  <em>Target Group routing and health status configuration mapping on AWS Application Load Balancer</em>
+  <em>Target group routing and health status on the AWS Application Load Balancer</em>
 </div> <br>
 
-**Technical Description:** Inbound client traffic is captured and filtered through the AWS Application Load Balancer (ALB). The ALB executes Host-based and Path-based routing rules to direct, isolate, and optimize traffic load across active production pods and target services.
+Inbound traffic is routed through the AWS ALB, which applies host- and path-based routing rules to direct requests to the appropriate pods/targets.
 
-### 6.3. Multi-Environment Log Management (CloudWatch Logs)
+### 7.3. Log Management (CloudWatch)
 <div align="center">
   <img src="img/cloudwatch-logs.png" width="650" alt="AWS CloudWatch Multi-Environment Logging Group">
   <br>
-  <em>Isolated centralized streams on AWS CloudWatch logs for Development and Production environments</em>
+  <em>Separate CloudWatch log groups for Development and Production</em>
 </div> <br>
 
-**Technical Description:** Application runtime telemetry is bifurcated into environment-specific log groups (`/ec2/shopnow-frontend` for Dev container execution and `/prod/shopnow-frontend` via AWS FluentBit for containerised EKS workloads). This preserves operational isolation, log structural immutability, and simplifies audit forensic tracking.
+Application logs are split by environment (`/ec2/shopnow-frontend` for Dev, `/prod/shopnow-frontend` via FluentBit for the EKS workload), keeping dev and prod logs isolated for easier debugging.
 
-### 6.4. Container Image Storage (Private Registry)
+### 7.4. Container Registry (ECR)
 <div align="center">
   <img src="img/ecr-registry.png" width="650" alt="AWS Elastic Container Registry Private Repository">
   <br>
-  <em>Secure hosting environment via AWS Elastic Container Registry (ECR) Private Repository</em>
+  <em>Docker images stored in a private AWS ECR repository</em>
 </div> <br>
 
-**Technical Description:** Immutable release artifacts (Docker container images) are pushed directly into the secure AWS ECR Private Registry using short-lived IAM OIDC Token authentication, entirely mitigating the leakage risk of static AWS credentials.
+Images are pushed to a private ECR repository using short-lived OIDC credentials — no static AWS keys are stored in CI.
 
-### 6.5. Application User Interface & SSL Security (User Interface & HTTPS)
+### 7.5. Live Application (HTTPS)
 <div align="center">
   <img src="img/website-ssl.png" width="650" alt="ShopNow Frontend Interface with Valid SSL Certificate">
   <br>
-  <em>Live Client Interface running securely over an encrypted HTTPS connection</em>
+  <em>Application running on its custom domain with a valid SSL certificate</em>
 </div> <br>
 
-**Technical Description:** The user-facing single page application runs stably on its designated custom domain. Transport Layer Security (TLS/SSL) is actively enforced via certificates provisioned and auto-renewed by AWS Certificate Manager (ACM) to preserve end-to-end data integrity.
+The app runs on its custom domain over HTTPS, with the certificate provisioned and auto-renewed via AWS Certificate Manager.
 
-### 6.6. Comprehensive Security Scan Reports
+### 7.6. Security Scan Reports
 <p align="center">
-  <img src="img/Aranchi-scan-website.png" alt="Aranchi scan website" width="350">
-  <img src="img/Snyk-scan-code.png" alt="CI/CD Pipeline Status" width="350">
-  <img src="img/ZAP-scan-website.png" alt="CI/CD Pipeline Status" width="350">
-</p> 
+  <img src="img/Aranchi-scan-website.png" alt="Arachni scan website" width="350">
+  <img src="img/Snyk-scan-code.png" alt="Snyk scan code" width="350">
+  <img src="img/ZAP-scan-website.png" alt="ZAP scan website" width="350">
+</p>
 
-Detailed compliance scanning data is automatically exported into readable HTML formats, serving as strict Quality Control gates for system audits:
+Each pipeline run produces scan reports used as gates before deployment:
 
-| Assessment Domain | Scanner Tool | Live Artifact / Workflow Run Link |
+| Scan Type | Tool | Report |
 | :--- | :--- | :--- |
-| **Third-Party Dependencies** | Snyk SAST | [Snyk Scan Report Artifact](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847) |
-| **Repository Secret Leakage**| Trivy FS | [Trivy Filesystem Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319309333) |
-| **Container OS Vulnerabilities**| Trivy Image | [Trivy Container Layer Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319327430) |
-| **Web Application Security** | OWASP ZAP | [ZAP Dynamic Baseline Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319340250) |
-| **Dynamic Penetration Test** | Arachni | [Arachni Dynamic Scan ZIP Archive](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319341287) |
+| **Dependency Vulnerabilities** | Snyk SAST | [Snyk Scan Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847) |
+| **Repo Secret Leakage** | Trivy FS | [Trivy Filesystem Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319309333) |
+| **Container Image CVEs** | Trivy Image | [Trivy Image Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319327430) |
+| **Web App Security (DAST)** | OWASP ZAP | [ZAP Baseline Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319340250) |
+| **Penetration Test** | Arachni | [Arachni Scan Archive](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319341287) |
 
 ---
 
-## 7. Contact & Project Context
+## 8. Contact & Project Context
 
 **Author:** Nguyễn An Phúc (Bel7phegor)
 * **Profiles:** [LinkedIn: nguyen-an-phuc](https://www.linkedin.com/in/nguyen-an-phuc) | [GitHub: Bel7phegor](https://github.com/Bel7phegor) | [Portfolio: anphuc.site](https://anphuc.site)
