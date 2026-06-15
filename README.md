@@ -233,22 +233,53 @@ The app runs on its custom domain over HTTPS, with the certificate provisioned a
 
 ### 7.6. Security Scan Reports
 <p align="center">
-  <img src="img/Aranchi-scan-website.png" alt="Arachni scan website" width="350" border=1>
-  <img src="img/Snyk-scan-code.png" alt="Snyk scan code" width="350" border=1>
-  <img src="img/ZAP-scan-website.png" alt="ZAP scan website" width="350" border=1>
+<kbd>
+  <img src="img/Aranchi-scan-website.png" alt="Arachni scan website" width="350">
+</kbd>
+<kbd>
+  <img src="img/Snyk-scan-code.png" alt="Snyk scan code" width="350">
+</kbd>
+<kbd>
+  <img src="img/ZAP-scan-website.png" alt="ZAP scan website" width="350">
+</kbd>
 </p>
 
 Each pipeline run produces scan reports used as gates before deployment:
 
-| Scan Type | Tool | Report |
-| :--- | :--- | :--- |
-| **Dependency Vulnerabilities** | Snyk SAST | [Snyk Scan Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847) |
-| **Repo Secret Leakage** | Trivy FS | [Trivy Filesystem Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319309333) |
-| **Container Image CVEs** | Trivy Image | [Trivy Image Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319327430) |
-| **Web App Security (DAST)** | OWASP ZAP | [ZAP Baseline Report](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319340250) |
-| **Penetration Test** | Arachni | [Arachni Scan Archive](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319341287) |
-
----
+<div align="center">
+  <table width="70%">
+    <tr>
+      <th align="left">Scan Type</th>
+      <th align="left">Tool</th>
+      <th align="left">Report</th>
+    </tr>
+    <tr>
+      <td align="left"><b>Dependency Vulnerabilities</b></td>
+      <td align="left">Snyk SAST</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847">Snyk Scan Report</a></td>
+    </tr>
+    <tr>
+      <td align="left"><b>Repo Secret Leakage</b></td>
+      <td align="left">Trivy FS</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319309333">Trivy Filesystem Report</a></td>
+    </tr>
+    <tr>
+      <td align="left"><b>Container Image CVEs</b></td>
+      <td align="left">Trivy Image</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319327430">Trivy Image Report</a></td>
+    </tr>
+    <tr>
+      <td align="left"><b>Web App Security (DAST)</b></td>
+      <td align="left">OWASP ZAP</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319340250">ZAP Baseline Report</a></td>
+    </tr>
+    <tr>
+      <td align="left"><b>Penetration Test</b></td>
+      <td align="left">Arachni</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319341287">Arachni Scan Archive</a></td>
+    </tr>
+  </table>
+</div>
 
 ## 8. Contact & Project Context
 
