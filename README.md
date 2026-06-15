@@ -172,7 +172,7 @@ A few key infrastructure choices and the reasoning behind them:
 
 | Layer | Technologies & Tools |
 | :--- | :--- |
-| **Frontend Engine** | React 18.2 (Hooks, SPA Architecture), Redux & Redux-Thunk, React Router v6, Axios, Bootstrap 5, Material-UI |
+| **Frontend Engine** | React 18.2 |
 | **Cloud Infrastructure** | AWS (EKS, EC2, VPC, Route 53, CloudWatch, ACM, IAM OIDC), Terraform IaC |
 | **Deployment & Orchestration** | Docker (Multi-stage Build), Helm Charts, GitHub Actions Pipelines |
 | **DevSecOps Scanners** | Snyk (SAST), Aqua Trivy (FS & Container Scan), OWASP ZAP (DAST), Arachni Framework |
@@ -233,9 +233,9 @@ The app runs on its custom domain over HTTPS, with the certificate provisioned a
 
 ### 7.6. Security Scan Reports
 <p align="center">
-  <img src="img/Aranchi-scan-website.png" alt="Arachni scan website" width="350">
-  <img src="img/Snyk-scan-code.png" alt="Snyk scan code" width="350">
-  <img src="img/ZAP-scan-website.png" alt="ZAP scan website" width="350">
+  <img src="img/Aranchi-scan-website.png" alt="Arachni scan website" width="350" border=1>
+  <img src="img/Snyk-scan-code.png" alt="Snyk scan code" width="350" border=1>
+  <img src="img/ZAP-scan-website.png" alt="ZAP scan website" width="350" border=1>
 </p>
 
 Each pipeline run produces scan reports used as gates before deployment:
