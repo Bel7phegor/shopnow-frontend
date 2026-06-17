@@ -193,6 +193,7 @@ The screenshots and links below show the pipeline, infrastructure, and security 
   <em>End-to-end Build, Scan, and Deploy workflow completing successfully</em>
 </div> <br>
 
+
 The pipeline runs the build, parallel security scans, and deployment stages in sequence, with the deploy step only proceeding once all security gates pass.
 
 ### 7.2. Traffic Routing (ALB)
