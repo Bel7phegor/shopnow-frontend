@@ -1,10 +1,11 @@
-name: CI/CD — Production
+name: CI/CD — Testing
 
 on:
-  pull_request:
+  push:
     branches:
       - test/pipeline
     paths:
+      - Dockerfile
       - .github/workflows/ci-test.yml
     
 env:
