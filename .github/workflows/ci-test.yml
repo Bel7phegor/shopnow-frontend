@@ -12,7 +12,7 @@ env:
   AWS_REGION:    ap-southeast-3
   NAMESPACE:     shopnow
   EKS_CLUSTER:   shopnow-prod-eks
-  IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:test_${{ github.ref_name }}_${{ github.sha }}
+  IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:test_${{ github.sha }}
   HELM_RELEASE:  ${{ github.event.repository.name }}
 
   # Report names
