@@ -1,4 +1,6 @@
-node_module/
-build/
-
+node_modules
+build
+.git
+.github
+*.md
 .env
