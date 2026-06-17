@@ -1,7 +1,8 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 COPY . .
 ARG REACT_APP_BASE_API_URL
 ENV REACT_APP_BASE_API_URL=$REACT_APP_BASE_API_URL
