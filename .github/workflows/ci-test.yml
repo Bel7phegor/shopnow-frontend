@@ -170,36 +170,55 @@ jobs:
     name: Notify Telegram
     runs-on: ubuntu-latest
     needs: [build, snyk-scan, trivy-fs-scan, trivy-image-scan]
-    if: always() 
+    if: always()
     steps:
-      - name: Download all security reports
+      - name: Determine failed jobs
+        id: check_status
+        run: |
+          FAILED_JOBS=""
+          if [ "${{ needs.snyk-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS snyk-scan"; fi
+          if [ "${{ needs.trivy-fs-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS trivy-fs-scan"; fi
+          if [ "${{ needs.trivy-image-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS trivy-image-scan"; fi
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+
+      - name: Download only failed reports
+        if: steps.check_status.outputs.failed_jobs != ''
         uses: actions/download-artifact@v4
         with:
           pattern: '*-report'
           path: reports
           merge-multiple: true
 
-      - name: Send Telegram general status
+      - name: Send Telegram notification
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
-            STATUS: ${{ contains(needs.*.result, 'failure') && 'FAILED - HIGH/CRITICAL VULNERABILITIES DETECTED' || 'PASSED' }} 
+            Status: ${{ contains(needs.*.result, 'failure') && 'FAILED' || 'PASSED' }}
+            Failed Jobs: ${{ steps.check_status.outputs.failed_jobs }}
             Pipeline: ${{ github.workflow }}
             Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
             Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Send HTML Reports to Telegram
-        if: contains(needs.*.result, 'failure')
+        if: steps.check_status.outputs.failed_jobs != ''
         run: |
-          for file in reports/*.html; do
-            if [ -f "$file" ]; then
-              FILENAME=$(basename "$file")
-              curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
-                -F chat_id="${{ secrets.TELEGRAM_TO }}" \
-                -F document="@$file" \
-                -F caption="Security Report: $FILENAME. Please download and review."
-            fi
+          for job in ${{ steps.check_status.outputs.failed_jobs }}; do
+            # Map job name to its specific artifact filename pattern
+            case $job in
+              snyk-scan) FILE_PATTERN="snyk-test*" ;;
+              trivy-fs-scan) FILE_PATTERN="trivy_fs-test*" ;;
+              trivy-image-scan) FILE_PATTERN="trivy_img-test*" ;;
+            esac
+            
+            # Send the specific file found
+            for file in reports/$FILE_PATTERN.html; do
+              if [ -f "$file" ]; then
+                curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
+                  -F chat_id="${{ secrets.TELEGRAM_TO }}" \
+                  -F document="@$file" \
+                  -F caption="Security alert: $job failed. Report attached."
+              fi
+            done
           done
