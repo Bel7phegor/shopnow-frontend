@@ -1,4 +1,4 @@
-name: CI/CD — Testing
+name: CI/CD - Testing
 
 on:
   push:
@@ -15,7 +15,6 @@ env:
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:test_${{ github.sha }}
   HELM_RELEASE:  ${{ github.event.repository.name }}
 
-  # Report names
   SNYKSCAN_REPORT:        "snyk_test_${{ github.event.repository.name }}_${{ github.sha }}"
   TRIVYFS_REPORT:         "trivy_fs_test_${{ github.event.repository.name }}_${{ github.sha }}"
   TRIVY_IMAGE_REPORT:     "trivy_img_test_${{ github.event.repository.name }}_${{ github.sha }}"
@@ -30,7 +29,7 @@ permissions:
 jobs:
 
   build:
-    name: Build & Push ECR
+    name: Build and Push ECR
     runs-on: ubuntu-latest
     environment: testing
 
@@ -38,7 +37,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Configure AWS Credentials OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
@@ -63,9 +62,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-
   snyk-scan:
-    name: Snyk — Source Code Scan
+    name: Snyk Source Code Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -87,19 +85,21 @@ jobs:
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
               npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk test --all-projects --json > snyk_result.json || true
+              snyk test --severity-threshold=high --all-projects --json > snyk_result.json || EXIT_CODE=\$?
               npm install -g snyk-to-html
               snyk-to-html -i snyk_result.json -o ${{ env.SNYKSCAN_REPORT }}.html
+              exit \${EXIT_CODE:-0}
             "
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: snyk-report
           path: ${{ env.SNYKSCAN_REPORT }}.html
-          retention-days: 30
+          retention-days: 5
 
   trivy-fs-scan:
-    name: Trivy — Filesystem Scan
+    name: Trivy Filesystem Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -112,18 +112,21 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
             --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
             --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trivy-fs-report
           path: ${{ env.TRIVYFS_REPORT }}.html
-          retention-days: 30
+          retention-days: 5
 
   trivy-image-scan:
-    name: Trivy — Image Scan
+    name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: [build]
     environment: testing
@@ -131,13 +134,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR & pull image
+      - name: Login to ECR and pull image
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
           docker pull ${{ env.IMAGE_VERSION }}
@@ -148,16 +151,20 @@ jobs:
             -v $(pwd):/output \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
             --output /output/${{ env.TRIVY_IMAGE_REPORT }}.html \
             ${{ env.IMAGE_VERSION }}
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trivy-image-report
           path: ${{ env.TRIVY_IMAGE_REPORT }}.html
-          retention-days: 30
+          retention-days: 5
 
   notify:
     name: Notify Telegram
@@ -165,119 +172,33 @@ jobs:
     needs: [build, snyk-scan, trivy-fs-scan, trivy-image-scan]
     if: always() 
     steps:
-      - name: Send notification
+      - name: Download all security reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+          merge-multiple: true
+
+      - name: Send Telegram general status
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
-            ${{ job.status == 'success' && 'OK' || 'ERROR' }} Pipeline: ${{ github.workflow }}
+            STATUS: ${{ contains(needs.*.result, 'failure') && 'FAILED - HIGH/CRITICAL VULNERABILITIES DETECTED' || 'PASSED' }} 
+            Pipeline: ${{ github.workflow }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-            Xem chi tiết tại: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          
-  # deploy:
-  #   name: Deploy to EKS Production
-  #   runs-on: ubuntu-latest
-  #   needs: [build, snyk-scan, trivy-fs-scan, trivy-image-scan]
-  #   environment: testing
+            Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Configure AWS credentials (OIDC)
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
-  #         aws-region: ${{ env.AWS_REGION }}
-
-  #     - name: Update kubeconfig
-  #       run: |
-  #         aws eks update-kubeconfig \
-  #           --region ${{ env.AWS_REGION }} \
-  #           --name ${{ env.EKS_CLUSTER }}
-
-  #     - name: Deploy với Helm
-  #       run: |
-  #         helm upgrade --install ${{ env.HELM_RELEASE }} ./helm \
-  #           --namespace ${{ env.NAMESPACE }} \
-  #           --create-namespace \
-  #           --set fullnameOverride=${{ env.HELM_RELEASE }} \
-  #           --set image.repository=${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }} \
-  #           --set image.tag=test_${{ github.ref_name }}_${{ github.sha }} \
-  #           --set ingress.host=${{ secrets.URL_FE }} \
-  #           --set ingress.acmArn=${{ secrets.ACM_CERT_ARN }} \
-  #           --atomic \
-  #           --timeout 5m \
-  #           --wait
-
-  #     - name: Verify deployment
-  #       run: |
-  #         kubectl rollout status deployment/${{ env.HELM_RELEASE }}-deployment \
-  #           -n ${{ env.NAMESPACE }} \
-  #           --timeout=300s
-
-  # zap-scan:
-  #   name: ZAP — Website Scan
-  #   runs-on: ubuntu-latest
-  #   needs: deploy
-  #   environment: production
-  #   continue-on-error: true
-
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Run ZAP baseline scan
-  #       run: |
-  #         docker run --rm \
-  #           -u root \
-  #           -v $(pwd):/zap/wrk/:rw \
-  #           zaproxy/zap-stable \
-  #           zap-baseline.py \
-  #           -t https://"${{ secrets.URL_FE }}" \
-  #           -r "${{ env.ZAP_REPORT }}.html" \
-  #           --autooff || true
-  #         sudo chown -R $(whoami):$(whoami) "${{ env.ZAP_REPORT }}.html"
-
-  #     - uses: actions/upload-artifact@v4
-  #       with:
-  #         name: zap-report
-  #         path: ${{ env.ZAP_REPORT }}.html
-  #         retention-days: 30
-
-  # arachni-website-scan:
-  #   name: Arachni Website Security Scan
-  #   runs-on: ubuntu-latest
-  #   needs: deploy
-  #   environment: production
-  #   continue-on-error: true
-    
-  #   steps:
-  #   - name: Prepare temp folder
-  #     run: mkdir -p arachni-temp
-
-  #   - name: Run Arachni scan
-  #     run: |
-  #       docker run --rm \
-  #         -v $(pwd)/arachni-temp/:/arachni-temp/ \
-  #         arachni/arachni:latest \
-  #         /usr/local/arachni/bin/arachni \
-  #         --output-verbose \
-  #         --scope-include-subdomains \
-  #         "https://${{ secrets.URL_FE }}" \
-  #         --report-save-path=/arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.afr
-  #   - name: Generate Arachni HTML report
-  #     run: |
-  #       docker run --rm \
-  #         -v $(pwd)/arachni-temp/:/arachni-temp/ \
-  #         arachni/arachni:latest \
-  #         /usr/local/arachni/bin/arachni_reporter \
-  #         /arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.afr \
-  #         --reporter=html:outfile=/arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
-  #       sudo chown -R $(whoami):$(whoami) ./arachni-temp/
-  #   - name: Upload Arachni report
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: arachni-website-report
-  #       path: arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
-  #       retention-days: 30
+      - name: Send HTML Reports to Telegram
+        if: contains(needs.*.result, 'failure')
+        run: |
+          for file in reports/*.html; do
+            if [ -f "$file" ]; then
+              FILENAME=$(basename "$file")
+              curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
+                -F chat_id="${{ secrets.TELEGRAM_TO }}" \
+                -F document="@$file" \
+                -F caption="Security Report: $FILENAME. Please download and review."
+            fi
+          done
