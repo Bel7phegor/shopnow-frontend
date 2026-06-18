@@ -89,7 +89,7 @@ jobs:
               snyk code test --severity-threshold=high --json > snyk_sast_result.json || EXIT_CODE=$?
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html
-              exit \${EXIT_CODE:-0}
+              exit ${EXIT_CODE:-0}
             "
 
       - name: Upload Reports
@@ -126,7 +126,7 @@ jobs:
               snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json || EXIT_CODE=$?
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html
-              exit \${EXIT_CODE:-0}
+              exit ${EXIT_CODE:-0}
             "
 
       - name: Upload Reports
