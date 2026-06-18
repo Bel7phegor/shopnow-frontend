@@ -15,7 +15,8 @@ env:
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:test_${{ github.sha }}
   HELM_RELEASE:  ${{ github.event.repository.name }}
 
-  SNYKSCAN_REPORT:        "snyk_test_${{ github.event.repository.name }}_${{ github.sha }}"
+  SNYKSCAN_SAST_REPORT:        "snyk_test_${{ github.event.repository.name }}_${{ github.sha }}"
+  SNYKSCAN_SCA_REPORT:        "snyk_test_${{ github.event.repository.name }}_${{ github.sha }}"
   TRIVYFS_REPORT:         "trivy_fs_test_${{ github.event.repository.name }}_${{ github.sha }}"
   TRIVY_IMAGE_REPORT:     "trivy_img_test_${{ github.event.repository.name }}_${{ github.sha }}"
   ARACHNI_WEBSITE_REPORT: "arachni_test_${{ github.event.repository.name }}_${{ github.sha }}"
@@ -63,39 +64,34 @@ jobs:
           cache-to: type=gha,mode=max
 
   snyk-scan:
-    name: Snyk Source Code Scan
+    name: Snyk SAST & SCA Scan
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Cache Node Modules for Snyk
-        uses: actions/cache@v4
-        with:
-          path: .npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Run Snyk scan
+      - name: Run Snyk Scan (SAST + SCA)
         run: |
-          docker run --rm \
-            --entrypoint /bin/sh \
-            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
-            -v $(pwd):/app -w /app \
-            snyk/snyk:node -c "
-              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk code test --severity-threshold=high --all-projects --json > snyk_result.json || EXIT_CODE=\$?
-              npm install -g snyk-to-html
-              snyk-to-html -i snyk_result.json -o ${{ env.SNYKSCAN_REPORT }}.html
-              exit \${EXIT_CODE:-0}
-            "
+          npm install -g snyk
+          snyk auth ${{ secrets.SNYK_TOKEN }}
+          
+          snyk code test --severity-threshold=high --json > snyk_sast_result.json || EXIT_CODE=$?
+          snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json || EXIT_CODE=$?
 
-      - uses: actions/upload-artifact@v4
+          npm install -g snyk-to-html
+          snyk-to-html -i snyk_sast_result.json -o ${ env.SNYKSCAN_SAST_REPORT }.html
+          snyk-to-html -i snyk_sca_result.json -o ${ env.SNYKSCAN_SCA_REPORT }.html
+
+          exit ${EXIT_CODE:-0}
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: snyk-report
-          path: ${{ env.SNYKSCAN_REPORT }}.html
+          name: snyk-reports
+          path: |
+            ${ env.SNYKSCAN_SAST_REPORT }.html
+            ${ env.SNYKSCAN_SCA_REPORT }.html
           retention-days: 5
 
   trivy-fs-scan:
