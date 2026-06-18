@@ -205,11 +205,11 @@ jobs:
         if: steps.check_status.outputs.failed_jobs != ''
         run: |
           for job in ${{ steps.check_status.outputs.failed_jobs }}; do
-            # Map job name to its specific artifact filename pattern
+            # Map job name to its specific artifact filename pattern using exact prefixes
             case $job in
-              snyk-scan) FILE_PATTERN="snyk-test*" ;;
-              trivy-fs-scan) FILE_PATTERN="trivy_fs-test*" ;;
-              trivy-image-scan) FILE_PATTERN="trivy_img-test*" ;;
+              snyk-scan) FILE_PATTERN="snyk_test*" ;;
+              trivy-fs-scan) FILE_PATTERN="trivy_fs_test*" ;;
+              trivy-image-scan) FILE_PATTERN="trivy_img_test*" ;;
             esac
             
             # Send the specific file found
