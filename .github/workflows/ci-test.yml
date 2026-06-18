@@ -96,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: snyk-reports
+          name: snyk-sast-reports
           path: ${{ env.SNYKSCAN_SAST_REPORT }}.html
           retention-days: 5
 
@@ -133,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: snyk-reports
+          name: snyk-sca-reports
           path: ${{ env.SNYKSCAN_SCA_REPORT }}.html
           retention-days: 5
 
@@ -208,7 +208,7 @@ jobs:
   notify:
     name: Notify Telegram
     runs-on: ubuntu-latest
-    needs: [build, snyk-sast, trivy-fs-scan, trivy-image-scan]
+    needs: [build, snyk-sast, snyk-sca, trivy-fs-scan, trivy-image-scan]
     if: always()
     steps:
       - name: Determine failed jobs
