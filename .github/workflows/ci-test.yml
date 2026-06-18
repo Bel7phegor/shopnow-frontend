@@ -85,7 +85,7 @@ jobs:
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
               npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk test --severity-threshold=high --all-projects --json > snyk_result.json || EXIT_CODE=\$?
+              snyk code test --severity-threshold=high --all-projects --json > snyk_result.json || EXIT_CODE=\$?
               npm install -g snyk-to-html
               snyk-to-html -i snyk_result.json -o ${{ env.SNYKSCAN_REPORT }}.html
               exit \${EXIT_CODE:-0}
