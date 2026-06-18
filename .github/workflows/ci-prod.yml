@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*"
+    paths:
+      - Dockerfile
+      - .github/workflows/ci-prod.yml
+      - helm/**
+      - src/**
 
 env:
   AWS_REGION:    ap-southeast-3
@@ -12,8 +17,8 @@ env:
   IMAGE_VERSION: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}:${{ github.ref_name }}_${{ github.sha }}
   HELM_RELEASE:  ${{ github.event.repository.name }}
 
-  # Report names
-  SNYKSCAN_REPORT:        "snyk_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
+  SNYKSCAN_SAST_REPORT:   "snyk_sast_test_${{ github.event.repository.name }}_${{ github.sha }}"
+  SNYKSCAN_SCA_REPORT:    "snyk_sca_test_${{ github.event.repository.name }}_${{ github.sha }}"
   TRIVYFS_REPORT:         "trivy_fs_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   TRIVY_IMAGE_REPORT:     "trivy_img_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
   ARACHNI_WEBSITE_REPORT: "arachni_${{ github.event.repository.name }}_${{ github.ref_name }}_${{ github.sha }}"
@@ -25,7 +30,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  # OPTIMIZED JOB 1: BUILD & PUSH WITH DOCKER LAYER CACHING
+
   build:
     name: Build & Push ECR
     runs-on: ubuntu-latest
@@ -60,9 +65,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # OPTIMIZED JOB 2: SECURITY SCAN WITH NPM CACHE
-  snyk-scan:
-    name: Snyk — Source Code Scan
+  snyk-sast:
+    name: Snyk Source Code Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -83,20 +87,62 @@ jobs:
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
-              npm install --cache /app/.npm --ignore-scripts
-              snyk test --all-projects --json > snyk_result.json || true
+              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
+              snyk code test --severity-threshold=high --json > snyk_sast_result.json
+              SNYK_EXIT_CODE=\$?
               npm install -g snyk-to-html
-              snyk-to-html -i snyk_result.json -o ${{ env.SNYKSCAN_REPORT }}.html
+              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
             "
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: snyk-report
-          path: ${{ env.SNYKSCAN_REPORT }}.html
-          retention-days: 30
+          name: snyk-sast-report
+          path: ${{ env.SNYKSCAN_SAST_REPORT }}.html
+          retention-days: 5
+
+  snyk-sca:
+    name: Snyk SCA Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node Modules for Snyk
+        uses: actions/cache@v4
+        with:
+          path: .npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Run Snyk scan
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v $(pwd):/app -w /app \
+            snyk/snyk:node -c "
+              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
+              snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json
+              SNYK_EXIT_CODE=\$?
+              npm install -g snyk-to-html
+              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
+            "
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-sca-report
+          path: ${{ env.SNYKSCAN_SCA_REPORT }}.html
+          retention-days: 5
 
   trivy-fs-scan:
-    name: Trivy — Filesystem Scan
+    name: Trivy Filesystem Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -109,31 +155,34 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
             --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
             --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trivy-fs-report
           path: ${{ env.TRIVYFS_REPORT }}.html
-          retention-days: 30
+          retention-days: 5
 
   trivy-image-scan:
-    name: Trivy — Image Scan
+    name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: [build]
-    
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR & pull image
+      - name: Login to ECR and pull image
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
           docker pull ${{ env.IMAGE_VERSION }}
@@ -144,21 +193,25 @@ jobs:
             -v $(pwd):/output \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
             --output /output/${{ env.TRIVY_IMAGE_REPORT }}.html \
             ${{ env.IMAGE_VERSION }}
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trivy-image-report
           path: ${{ env.TRIVY_IMAGE_REPORT }}.html
-          retention-days: 30
+          retention-days: 5
 
   deploy:
     name: Deploy to EKS Production
     runs-on: ubuntu-latest
-    needs: [build, snyk-scan, trivy-fs-scan, trivy-image-scan]
+    needs: [build, snyk-sast, snyk-sca, trivy-fs-scan, trivy-image-scan]
     environment: production 
 
     steps:

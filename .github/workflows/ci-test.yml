@@ -237,10 +237,10 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
             Status: ${{ contains(needs.*.result, 'failure') && 'FAILED' || 'PASSED' }}
-            Failed Jobs: ${{ steps.check_status.outputs.failed_jobs }}
-            Pipeline: ${{ github.workflow }}
-            Branch: ${{ github.ref_name }}
-            Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              Failed Jobs: ${{ steps.check_status.outputs.failed_jobs }}
+              Pipeline: ${{ github.workflow }}
+              Branch: ${{ github.ref_name }}
+              Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Send HTML Reports to Telegram
         if: steps.check_status.outputs.failed_jobs != ''
