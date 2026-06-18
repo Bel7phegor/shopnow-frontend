@@ -86,17 +86,18 @@ jobs:
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
               npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk code test --severity-threshold=high --json > snyk_sast_result.json || EXIT_CODE=$?
+              snyk code test --severity-threshold=high --json > snyk_sast_result.json
+              SNYK_EXIT_CODE=\$?
               npm install -g snyk-to-html
-              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html
-              exit ${EXIT_CODE:-0}
+              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
             "
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: snyk-sast-reports
+          name: snyk-sast-report
           path: ${{ env.SNYKSCAN_SAST_REPORT }}.html
           retention-days: 5
 
@@ -123,17 +124,18 @@ jobs:
             -v $(pwd):/app -w /app \
             snyk/snyk:node -c "
               npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json || EXIT_CODE=$?
+              snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json
+              SNYK_EXIT_CODE=\$?
               npm install -g snyk-to-html
-              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html
-              exit ${EXIT_CODE:-0}
+              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
             "
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: snyk-sca-reports
+          name: snyk-sca-report
           path: ${{ env.SNYKSCAN_SCA_REPORT }}.html
           retention-days: 5
 
@@ -168,7 +170,6 @@ jobs:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: [build]
-    environment: testing
 
     steps:
       - uses: actions/checkout@v4
