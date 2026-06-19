@@ -187,7 +187,8 @@ jobs:
           message: |
             [WAITING APPROVAL]
             Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
-            ${{ steps.check_status.outputs.found_jobs != '' && format('Jobs with findings: {0}. Please review the attached reports for details.', steps.check_status.outputs.found_jobs) || 'The pipeline is now waiting for your approval to build and push the image to ECR.' }}
+            ${{ steps.check_status.outputs.found_jobs != '' && format('Jobs with findings: {0}. 
+              Please review the attached reports for details.', steps.check_status.outputs.found_jobs) || 'The pipeline is now waiting for your approval to build and push the image to ECR.' }}
 
             Triggered by: ${{ github.actor }}
             Branch: ${{ github.ref_name }}
