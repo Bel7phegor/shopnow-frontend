@@ -38,6 +38,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Wait for Telegram Approval
+        uses: powerdot/telegram-manual-approval@main
+        with:
+          TELEGRAM_KEY: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_TO }}
+          UPDATE_REQUESTS: 150
+
       - name: Configure AWS Credentials OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
