@@ -136,7 +136,7 @@ jobs:
     name: Build and Push ECR
     runs-on: ubuntu-latest
     environment: testing
-    needs: [snyk-sast, snyk-sca, trivy-fs-scan]
+    needs: [snyk-sast, snyk-sca, trivy-fs-scan, notify-request-approval]
 
     steps:
       - name: Checkout code
