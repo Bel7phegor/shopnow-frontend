@@ -116,7 +116,7 @@ jobs:
       - name: Run Trivy FS scan
         continue-on-error: true
         run: |
-          docker run --rm \
+          if ! docker run --rm \
             -v $PWD:/${{ github.event.repository.name }} \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
@@ -125,8 +125,10 @@ jobs:
             --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
-            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html
-
+            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html; then
+            echo "::error title=Trivy Scan Failed:: (HIGH/CRITICAL)"
+          fi
+          
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -158,7 +160,7 @@ jobs:
     name: Build and Push ECR
     runs-on: ubuntu-latest
     environment: testing
-    needs: [snyk-sast, snyk-sca, trivy-fs-scan]
+    needs: [snyk-sast, snyk-sca, trivy-fs-scan, notify-request-approval]
 
     steps:
       - name: Checkout code
