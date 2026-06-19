@@ -179,6 +179,21 @@ jobs:
           path: reports
           merge-multiple: true
 
+      - name: Send Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            [WAITING APPROVAL]
+            Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
+            ${{ steps.check_status.outputs.found_jobs != '' && format('Jobs with findings: {0}. Please review the attached reports for details.', steps.check_status.outputs.found_jobs) || 'The pipeline is now waiting for your approval to build and push the image to ECR.' }}
+
+            Triggered by: ${{ github.actor }}
+            Branch: ${{ github.ref_name }}
+            Job: build
+            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Send HTML Reports to Telegram
         if: steps.check_status.outputs.found_jobs != ''
         run: |
@@ -196,28 +211,11 @@ jobs:
                 curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
                   -F chat_id="${{ secrets.TELEGRAM_TO }}" \
                   -F document="@$file" \
-                  -F caption="Security alert: $job found HIGH/CRITICAL vulnerabilities. Report attached."
+                  -F caption="Security alert: CRITICAL - $job found HIGH/CRITICAL vulnerabilities. Report attached."
               fi
             done
           done
 
-      - name: Send Notification
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_TO }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          message: |
-            [WAITING APPROVAL] 
-            Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
-            if ${{ steps.check_status.outputs.found_jobs != '' }}: Jobs with findings: ${{ steps.check_status.outputs.found_jobs }}
-            The pipeline is now waiting for your approval to build and push the image to ECR.
-            
-            Triggered by: ${{ github.actor }}
-            Branch: ${{ github.ref_name }}
-            Job: build
-            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          
   build:
     name: Build and Push ECR
     runs-on: ubuntu-latest
@@ -304,7 +302,7 @@ jobs:
   notify:
     name: Notify Telegram
     runs-on: ubuntu-latest
-    needs:  trivy-image-scan
+    needs: trivy-image-scan
     if: always()
     steps:
 
