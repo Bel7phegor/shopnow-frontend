@@ -46,7 +46,7 @@ jobs:
 
       - name: Run Snyk scan
         run: |
-          if ! docker run --rm \
+          docker run --rm \
             --entrypoint /bin/sh \
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
@@ -57,9 +57,7 @@ jobs:
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            "; then
-            echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
-          fi
+            " || { echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
@@ -86,7 +84,7 @@ jobs:
 
       - name: Run Snyk scan
         run: |
-          if ! docker run --rm \
+          docker run --rm \
             --entrypoint /bin/sh \
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
@@ -97,9 +95,7 @@ jobs:
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            "; then
-            echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
-          fi
+            " || { echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
@@ -127,9 +123,7 @@ jobs:
             --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
-            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html; then
-            echo "::error title=Trivy Scan Failed:: (HIGH/CRITICAL)"
-          fi
+            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html || { echo "::error title=Trivy FS Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
           
       - uses: actions/upload-artifact@v4
         if: always()
