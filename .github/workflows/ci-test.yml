@@ -32,6 +32,8 @@ jobs:
   snyk-sast:
     name: Snyk Source Code Scan
     runs-on: ubuntu-latest
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
 
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +47,9 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Run Snyk scan
+        id: scan
         run: |
-          docker run --rm \
+          if docker run --rm \
             --entrypoint /bin/sh \
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
@@ -57,7 +60,12 @@ jobs:
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            " || { echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
+            "; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
@@ -70,6 +78,8 @@ jobs:
   snyk-sca:
     name: Snyk SCA Scan
     runs-on: ubuntu-latest
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
 
     steps:
       - uses: actions/checkout@v4
@@ -83,8 +93,9 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Run Snyk scan
+        id: scan
         run: |
-          docker run --rm \
+          if docker run --rm \
             --entrypoint /bin/sh \
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
             -v $(pwd):/app -w /app \
@@ -95,7 +106,12 @@ jobs:
               npm install -g snyk-to-html
               snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            " || { echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
+            "; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
 
       - name: Upload Reports
         uses: actions/upload-artifact@v4
@@ -108,13 +124,16 @@ jobs:
   trivy-fs-scan:
     name: Trivy Filesystem Scan
     runs-on: ubuntu-latest
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Run Trivy FS scan
+        id: scan
         run: |
-          docker run --rm \
+          if docker run --rm \
             -v $PWD:/${{ github.event.repository.name }} \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
@@ -123,8 +142,13 @@ jobs:
             --no-progress \
             --format template \
             --template "@contrib/html.tpl" \
-            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html || { echo "::error title=Trivy FS Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"; exit 1; }
-          
+            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Trivy FS Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -149,13 +173,13 @@ jobs:
             
             Triggered by: ${{ github.actor }}
             Branch: ${{ github.ref_name }}
-            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/approval-request
 
   build:
     name: Build and Push ECR
     runs-on: ubuntu-latest
     environment: testing
-    needs: notify-request-approval
+    needs: [notify-request-approval, snyk-sast, snyk-sca, trivy-fs-scan]
 
     steps:
       - name: Checkout code
@@ -190,6 +214,8 @@ jobs:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: [build]
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
 
     steps:
       - uses: actions/checkout@v4
@@ -206,8 +232,9 @@ jobs:
           docker pull ${{ env.IMAGE_VERSION }}
 
       - name: Scan image
+        id: scan
         run: |
-          docker run --rm \
+          if docker run --rm \
             -v $(pwd):/output \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 image \
@@ -217,7 +244,12 @@ jobs:
             --format template \
             --template "@contrib/html.tpl" \
             --output /output/${{ env.TRIVY_IMAGE_REPORT }}.html \
-            ${{ env.IMAGE_VERSION }}
+            ${{ env.IMAGE_VERSION }}; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Trivy Image Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -232,18 +264,18 @@ jobs:
     needs: [build, snyk-sast, snyk-sca, trivy-fs-scan, trivy-image-scan]
     if: always()
     steps:
-      - name: Determine failed jobs
+      - name: Determine jobs with findings
         id: check_status
         run: |
-          FAILED_JOBS=""
-          if [ "${{ needs.snyk-sast.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS snyk-sast"; fi
-          if [ "${{ needs.snyk-sca.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS snyk-sca"; fi
-          if [ "${{ needs.trivy-fs-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS trivy-fs-scan"; fi
-          if [ "${{ needs.trivy-image-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS trivy-image-scan"; fi
-          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+          FOUND_JOBS=""
+          if [ "${{ needs.snyk-sast.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sast"; fi
+          if [ "${{ needs.snyk-sca.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sca"; fi
+          if [ "${{ needs.trivy-fs-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-fs-scan"; fi
+          if [ "${{ needs.trivy-image-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-image-scan"; fi
+          echo "found_jobs=$FOUND_JOBS" >> $GITHUB_OUTPUT
 
-      - name: Download only failed reports
-        if: steps.check_status.outputs.failed_jobs != ''
+      - name: Download reports for jobs with findings
+        if: steps.check_status.outputs.found_jobs != ''
         uses: actions/download-artifact@v4
         with:
           pattern: '*-report'
@@ -256,16 +288,16 @@ jobs:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
-            Status: ${{ contains(needs.*.result, 'failure') && 'FAILED' || 'PASSED' }}
-              Failed Jobs: ${{ steps.check_status.outputs.failed_jobs }}
+            Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
+              Jobs with findings: ${{ steps.check_status.outputs.found_jobs }}
               Pipeline: ${{ github.workflow }}
               Branch: ${{ github.ref_name }}
               Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Send HTML Reports to Telegram
-        if: steps.check_status.outputs.failed_jobs != ''
+        if: steps.check_status.outputs.found_jobs != ''
         run: |
-          for job in ${{ steps.check_status.outputs.failed_jobs }}; do
+          for job in ${{ steps.check_status.outputs.found_jobs }}; do
             # Map job name to its specific artifact filename pattern using exact prefixes
             case $job in
               snyk-sast) FILE_PATTERN="snyk_sast_test*" ;;
@@ -274,13 +306,13 @@ jobs:
               trivy-image-scan) FILE_PATTERN="trivy_img_test*" ;;
             esac
             
-            # Send the specific file found
+            # Send only the report for the job that found vulnerabilities
             for file in reports/$FILE_PATTERN.html; do
               if [ -f "$file" ]; then
                 curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
                   -F chat_id="${{ secrets.TELEGRAM_TO }}" \
                   -F document="@$file" \
-                  -F caption="Security alert: $job failed. Report attached."
+                  -F caption="Security alert: $job found HIGH/CRITICAL vulnerabilities. Report attached."
               fi
             done
           done
