@@ -162,6 +162,45 @@ jobs:
     needs: [snyk-sast, snyk-sca, trivy-fs-scan]
 
     steps:
+      - name: Determine jobs with findings
+        id: check_status
+        run: |
+          FOUND_JOBS=""
+          if [ "${{ needs.snyk-sast.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sast"; fi
+          if [ "${{ needs.snyk-sca.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sca"; fi
+          if [ "${{ needs.trivy-fs-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-fs-scan"; fi
+          echo "found_jobs=$FOUND_JOBS" >> $GITHUB_OUTPUT
+
+      - name: Download reports for jobs with findings
+        if: steps.check_status.outputs.found_jobs != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-report'
+          path: reports
+          merge-multiple: true
+
+      - name: Send HTML Reports to Telegram
+        if: steps.check_status.outputs.found_jobs != ''
+        run: |
+          for job in ${{ steps.check_status.outputs.found_jobs }}; do
+            # Map job name to its specific artifact filename pattern using exact prefixes
+            case $job in
+              snyk-sast) FILE_PATTERN="snyk_sast_test*" ;;
+              snyk-sca) FILE_PATTERN="snyk_sca_test*" ;;
+              trivy-fs-scan) FILE_PATTERN="trivy_fs_test*" ;;
+            esac
+            
+            # Send only the report for the job that found vulnerabilities
+            for file in reports/$FILE_PATTERN.html; do
+              if [ -f "$file" ]; then
+                curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
+                  -F chat_id="${{ secrets.TELEGRAM_TO }}" \
+                  -F document="@$file" \
+                  -F caption="Security alert: $job found HIGH/CRITICAL vulnerabilities. Report attached."
+              fi
+            done
+          done
+          
       - name: Send Notification
         uses: appleboy/telegram-action@master
         with:
@@ -177,6 +216,7 @@ jobs:
             Job: build
             Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+          
   build:
     name: Build and Push ECR
     runs-on: ubuntu-latest
@@ -266,13 +306,11 @@ jobs:
     needs:  trivy-image-scan
     if: always()
     steps:
+
       - name: Determine jobs with findings
         id: check_status
         run: |
           FOUND_JOBS=""
-          if [ "${{ needs.snyk-sast.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sast"; fi
-          if [ "${{ needs.snyk-sca.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sca"; fi
-          if [ "${{ needs.trivy-fs-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-fs-scan"; fi
           if [ "${{ needs.trivy-image-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-image-scan"; fi
           echo "found_jobs=$FOUND_JOBS" >> $GITHUB_OUTPUT
 
@@ -302,9 +340,6 @@ jobs:
           for job in ${{ steps.check_status.outputs.found_jobs }}; do
             # Map job name to its specific artifact filename pattern using exact prefixes
             case $job in
-              snyk-sast) FILE_PATTERN="snyk_sast_test*" ;;
-              snyk-sca) FILE_PATTERN="snyk_sca_test*" ;;
-              trivy-fs-scan) FILE_PATTERN="trivy_fs_test*" ;;
               trivy-image-scan) FILE_PATTERN="trivy_img_test*" ;;
             esac
             
