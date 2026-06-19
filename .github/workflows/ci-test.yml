@@ -55,10 +55,10 @@ jobs:
               snyk code test --severity-threshold=high --json > snyk_sast_result.json
               SNYK_EXIT_CODE=\$?
               npm install -g snyk-to-html
-              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true; then
-              echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            "
+            "; then
+            echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
           fi
 
       - name: Upload Reports
@@ -85,7 +85,6 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Run Snyk scan
-        continue-on-error: true
         run: |
           if ! docker run --rm \
             --entrypoint /bin/sh \
@@ -96,10 +95,10 @@ jobs:
               snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json
               SNYK_EXIT_CODE=\$?
               npm install -g snyk-to-html
-              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true; then
-              echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
               exit \$SNYK_EXIT_CODE
-            "
+            "; then
+            echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
           fi
 
       - name: Upload Reports
@@ -118,7 +117,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Trivy FS scan
-        continue-on-error: true
         run: |
           if ! docker run --rm \
             -v $PWD:/${{ github.event.repository.name }} \
