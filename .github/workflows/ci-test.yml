@@ -200,7 +200,7 @@ jobs:
               fi
             done
           done
-          
+
       - name: Send Notification
         uses: appleboy/telegram-action@master
         with:
@@ -208,7 +208,8 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
             [WAITING APPROVAL] 
-            All source code security scans have PASSED!
+            Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
+            if ${{ steps.check_status.outputs.found_jobs != '' }}: Jobs with findings: ${{ steps.check_status.outputs.found_jobs }}
             The pipeline is now waiting for your approval to build and push the image to ECR.
             
             Triggered by: ${{ github.actor }}
