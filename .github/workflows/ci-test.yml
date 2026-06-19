@@ -263,7 +263,7 @@ jobs:
   notify:
     name: Notify Telegram
     runs-on: ubuntu-latest
-    needs: [build, snyk-sast, snyk-sca, trivy-fs-scan, trivy-image-scan]
+
     if: always()
     steps:
       - name: Determine jobs with findings

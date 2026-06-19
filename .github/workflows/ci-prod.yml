@@ -388,3 +388,62 @@ jobs:
         name: arachni-website-report
         path: arachni-temp/${{ env.ARACHNI_WEBSITE_REPORT }}.html.zip
         retention-days: 30
+
+  notify:
+    name: Notify Telegram
+    runs-on: ubuntu-latest
+    needs: [zap-scan, arachni-website-scan]
+    if: always()
+    steps:
+      - name: Determine jobs with findings
+        id: check_status
+        run: |
+          FOUND_JOBS=""
+          if [ "${{ needs.snyk-sast.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sast"; fi
+          if [ "${{ needs.snyk-sca.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS snyk-sca"; fi
+          if [ "${{ needs.trivy-fs-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-fs-scan"; fi
+          if [ "${{ needs.trivy-image-scan.outputs.vulnerable }}" == "true" ]; then FOUND_JOBS="$FOUND_JOBS trivy-image-scan"; fi
+          echo "found_jobs=$FOUND_JOBS" >> $GITHUB_OUTPUT
+
+      - name: Download reports for jobs with findings
+        if: steps.check_status.outputs.found_jobs != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-report'
+          path: reports
+          merge-multiple: true
+
+      - name: Send Telegram notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            Status: ${{ steps.check_status.outputs.found_jobs != '' && 'VULNERABILITIES FOUND' || 'PASSED' }}
+              Jobs with findings: ${{ steps.check_status.outputs.found_jobs }}
+              Pipeline: ${{ github.workflow }}
+              Branch: ${{ github.ref_name }}
+              Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send HTML Reports to Telegram
+        if: steps.check_status.outputs.found_jobs != ''
+        run: |
+          for job in ${{ steps.check_status.outputs.found_jobs }}; do
+            # Map job name to its specific artifact filename pattern using exact prefixes
+            case $job in
+              snyk-sast) FILE_PATTERN="snyk_sast_test*" ;;
+              snyk-sca) FILE_PATTERN="snyk_sca_test*" ;;
+              trivy-fs-scan) FILE_PATTERN="trivy_fs_test*" ;;
+              trivy-image-scan) FILE_PATTERN="trivy_img_test*" ;;
+            esac
+            
+            # Send only the report for the job that found vulnerabilities
+            for file in reports/$FILE_PATTERN.html; do
+              if [ -f "$file" ]; then
+                curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument" \
+                  -F chat_id="${{ secrets.TELEGRAM_TO }}" \
+                  -F document="@$file" \
+                  -F caption="Security alert: $job found HIGH/CRITICAL vulnerabilities. Report attached."
+              fi
+            done
+          done
