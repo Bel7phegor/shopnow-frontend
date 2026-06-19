@@ -159,6 +159,7 @@ jobs:
   notify-request-approval:
     name: Send Approval Request to Telegram
     runs-on: ubuntu-latest
+    needs: [snyk-sast, snyk-sca, trivy-fs-scan]
 
     steps:
       - name: Send Notification
@@ -173,7 +174,8 @@ jobs:
             
             Triggered by: ${{ github.actor }}
             Branch: ${{ github.ref_name }}
-            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/approval-request
+            Job: build
+            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   build:
     name: Build and Push ECR

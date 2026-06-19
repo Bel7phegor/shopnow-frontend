@@ -31,16 +31,165 @@ permissions:
 
 jobs:
 
-  build:
-    name: Build & Push ECR
+  snyk-sast:
+    name: Snyk Source Code Scan
     runs-on: ubuntu-latest
-    environment: production 
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node Modules for Snyk
+        uses: actions/cache@v4
+        with:
+          path: .npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Run Snyk scan
+        id: scan
+        run: |
+          if docker run --rm \
+            --entrypoint /bin/sh \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v $(pwd):/app -w /app \
+            snyk/snyk:node -c "
+              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
+              snyk code test --severity-threshold=high --json > snyk_sast_result.json
+              SNYK_EXIT_CODE=\$?
+              npm install -g snyk-to-html
+              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
+            "; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Snyk SAST Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-sast-report
+          path: ${{ env.SNYKSCAN_SAST_REPORT }}.html
+          retention-days: 5
+
+  snyk-sca:
+    name: Snyk SCA Scan
+    runs-on: ubuntu-latest
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node Modules for Snyk
+        uses: actions/cache@v4
+        with:
+          path: .npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Run Snyk scan
+        id: scan
+        run: |
+          if docker run --rm \
+            --entrypoint /bin/sh \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v $(pwd):/app -w /app \
+            snyk/snyk:node -c "
+              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
+              snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json
+              SNYK_EXIT_CODE=\$?
+              npm install -g snyk-to-html
+              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
+              exit \$SNYK_EXIT_CODE
+            "; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Snyk SCA Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-sca-report
+          path: ${{ env.SNYKSCAN_SCA_REPORT }}.html
+          retention-days: 5
+
+  trivy-fs-scan:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy FS scan
+        id: scan
+        run: |
+          if docker run --rm \
+            -v $PWD:/${{ github.event.repository.name }} \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
+            --format template \
+            --template "@contrib/html.tpl" \
+            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Trivy FS Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-fs-report
+          path: ${{ env.TRIVYFS_REPORT }}.html
+          retention-days: 5
+
+  notify-build-request-approval:
+    name: Send Approval Request to Telegram
+    runs-on: ubuntu-latest
+    needs: [snyk-sast, snyk-sca, trivy-fs-scan]
+
+    steps:
+      - name: Send Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            [WAITING APPROVAL] 
+            All source code security scans have PASSED!
+            The pipeline is now waiting for your approval to build and push the image to ECR.
+            
+            Triggered by: ${{ github.actor }}
+            Branch: ${{ github.ref_name }}
+            Job: build
+            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  build:
+    name: Build and Push ECR
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [notify-build-request-approval]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Configure AWS Credentials OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.ROLE_ACCESS_PROD }}
@@ -65,113 +214,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  snyk-sast:
-    name: Snyk Source Code Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache Node Modules for Snyk
-        uses: actions/cache@v4
-        with:
-          path: .npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Run Snyk scan
-        run: |
-          docker run --rm \
-            --entrypoint /bin/sh \
-            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
-            -v $(pwd):/app -w /app \
-            snyk/snyk:node -c "
-              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk code test --severity-threshold=high --json > snyk_sast_result.json
-              SNYK_EXIT_CODE=\$?
-              npm install -g snyk-to-html
-              snyk-to-html -i snyk_sast_result.json -o ${{ env.SNYKSCAN_SAST_REPORT }}.html || true
-              exit \$SNYK_EXIT_CODE
-            "
-
-      - name: Upload Reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: snyk-sast-report
-          path: ${{ env.SNYKSCAN_SAST_REPORT }}.html
-          retention-days: 5
-
-  snyk-sca:
-    name: Snyk SCA Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache Node Modules for Snyk
-        uses: actions/cache@v4
-        with:
-          path: .npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Run Snyk scan
-        run: |
-          docker run --rm \
-            --entrypoint /bin/sh \
-            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
-            -v $(pwd):/app -w /app \
-            snyk/snyk:node -c "
-              npm ci --cache /app/.npm --prefer-offline --no-audit --ignore-scripts
-              snyk test --severity-threshold=high --all-projects --json > snyk_sca_result.json
-              SNYK_EXIT_CODE=\$?
-              npm install -g snyk-to-html
-              snyk-to-html -i snyk_sca_result.json -o ${{ env.SNYKSCAN_SCA_REPORT }}.html || true
-              exit \$SNYK_EXIT_CODE
-            "
-
-      - name: Upload Reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: snyk-sca-report
-          path: ${{ env.SNYKSCAN_SCA_REPORT }}.html
-          retention-days: 5
-
-  trivy-fs-scan:
-    name: Trivy Filesystem Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Trivy FS scan
-        run: |
-          docker run --rm \
-            -v $PWD:/${{ github.event.repository.name }} \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.69.3 fs /${{ github.event.repository.name }} \
-            --severity HIGH,CRITICAL \
-            --exit-code 1 \
-            --no-progress \
-            --format template \
-            --template "@contrib/html.tpl" \
-            --output /${{ github.event.repository.name }}/${{ env.TRIVYFS_REPORT }}.html
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: trivy-fs-report
-          path: ${{ env.TRIVYFS_REPORT }}.html
-          retention-days: 5
-
   trivy-image-scan:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: [build]
+    outputs:
+      vulnerable: ${{ steps.scan.outputs.vulnerable }}
 
     steps:
       - uses: actions/checkout@v4
@@ -188,8 +236,9 @@ jobs:
           docker pull ${{ env.IMAGE_VERSION }}
 
       - name: Scan image
+        id: scan
         run: |
-          docker run --rm \
+          if docker run --rm \
             -v $(pwd):/output \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:0.69.3 image \
@@ -199,7 +248,12 @@ jobs:
             --format template \
             --template "@contrib/html.tpl" \
             --output /output/${{ env.TRIVY_IMAGE_REPORT }}.html \
-            ${{ env.IMAGE_VERSION }}
+            ${{ env.IMAGE_VERSION }}; then
+            echo "vulnerable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "vulnerable=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Trivy Image Scan Failed:: Found issues with 'HIGH/CRITICAL' severity"
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -208,10 +262,31 @@ jobs:
           path: ${{ env.TRIVY_IMAGE_REPORT }}.html
           retention-days: 5
 
+  notify-deploy-request-approval:
+    name: Send Approval Request to Telegram
+    runs-on: ubuntu-latest
+    needs: [trivy-image-scan]
+
+    steps:
+      - name: Send Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            [WAITING APPROVAL] 
+            All source code security scans have PASSED!
+            The pipeline is now waiting for your approval to deploy on EKS Production.
+            
+            Triggered by: ${{ github.actor }}
+            Branch: ${{ github.ref_name }}
+            Job: deploy
+            Click here to Approve: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   deploy:
     name: Deploy to EKS Production
     runs-on: ubuntu-latest
-    needs: [build, snyk-sast, snyk-sca, trivy-fs-scan, trivy-image-scan]
+    needs: [build, trivy-image-scan, notify-deploy-request-approval]
     environment: production 
 
     steps:
