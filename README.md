@@ -16,6 +16,7 @@ React-based e-commerce frontend deployed on AWS with a complete DevSecOps CI/CD 
     - [4.2. Workflow Lifecycles](#42-workflow-lifecycles)
       - [A. Development Pipeline (`ci-dev.yml`)](#a-development-pipeline-ci-devyml)
       - [B. Production Pipeline (`ci-prod.yml`)](#b-production-pipeline-ci-prodyml)
+      - [C. Telegram Notification System](#c-telegram-notification-system)
     - [4.3. Kubernetes Templating with Helm](#43-kubernetes-templating-with-helm)
   - [5. Design Decisions \& Trade-offs](#5-design-decisions--trade-offs)
   - [6. Tech Stack Matrix](#6-tech-stack-matrix)
@@ -26,6 +27,7 @@ React-based e-commerce frontend deployed on AWS with a complete DevSecOps CI/CD 
     - [7.4. Container Registry (ECR)](#74-container-registry-ecr)
     - [7.5. Live Application (HTTPS)](#75-live-application-https)
     - [7.6. Security Scan Reports](#76-security-scan-reports)
+    - [7.7. Telegram Security Notifications](#77-telegram-security-notifications)
   - [8. Contact \& Project Context](#8-contact--project-context)
 
 </details>
@@ -58,7 +60,7 @@ The frontend architecture is designed with strict separation of concerns, high a
 
 ## 2. Multi-Environment Infrastructure Strategy
 
-All infrastructure is provisioned via Terraform as Code in [Bel7phegor/shopnow-infa](https://github.com/Bel7phegor/shopnow-infa). 
+> All infrastructure is provisioned via Terraform as Code in [Bel7phegor/shopnow-infa](https://github.com/Bel7phegor/shopnow-infa). 
 
 ### Environment Cross-Reference Matrix
 
@@ -130,6 +132,12 @@ The pipelines utilize a **Shift-Left Security** approach, embedding automated vu
    * **OWASP ZAP Scan:** Validates OWASP Top 10 compliance on the live URL.
    * **Arachni Penetration Testing:** Executes dynamic security testing across subdomains.
 
+#### C. Telegram Notification System
+The pipeline integrates Telegram as a real-time channel for security visibility and deployment gating:
+* **Pre-Deploy Alert:** After the SAST/SCA/Filesystem scans complete, a summary message is sent to Telegram. Scan jobs are intentionally allowed to pass (non-blocking) even when `HIGH`/`CRITICAL` findings exist, so the pipeline keeps moving while still surfacing issues — visibility into the GitHub Actions `::error` annotations and the Telegram alert, rather than a hard pipeline stop.
+* **Selective Report Delivery:** Only the HTML report from the specific scanner that found a vulnerability is attached and sent — avoiding noise from clean reports.
+* **Approval Request:** The same notification includes a direct link to approve the `build` job, combining the security summary and the deployment gate into a single message.
+* **Post-Build Image Scan Alert:** A second, separate notification reports the Trivy container image scan result once the image has been built and pushed to ECR.
 
 ### 4.3. Kubernetes Templating with Helm
 
@@ -151,7 +159,7 @@ helm upgrade --install shopnow-frontend ./helm \
 
 - `--atomic --wait` ensures that if the rollout fails health checks within the timeout, Helm automatically rolls back to the previous release — avoiding a broken deployment staying live in production.
 
-The chart structure follows the reusable template defined in [Bel7phegor/templates-helm-k8s](https://github.com/Bel7phegor/templates-helm-k8s) (Deployment, Service, Ingress, HPA), adapted here for the frontend service's specific needs (Nginx-served static build, single container port 80).
+> The chart structure follows the reusable template defined in [Bel7phegor/templates-helm-k8s](https://github.com/Bel7phegor/templates-helm-k8s) (Deployment, Service, Ingress, HPA), adapted here for the frontend service's specific needs (Nginx-served static build, single container port 80).
 
 
 ## 5. Design Decisions & Trade-offs
@@ -194,7 +202,7 @@ The screenshots and links below show the pipeline, infrastructure, and security 
 </div> <br>
 
 
-The pipeline runs the build, parallel security scans, and deployment stages in sequence, with the deploy step only proceeding once all security gates pass.
+> The pipeline runs the build, parallel security scans, and deployment stages in sequence, with the deploy step only proceeding once all security gates pass.
 
 ### 7.2. Traffic Routing (ALB)
 <div align="center">
@@ -203,7 +211,7 @@ The pipeline runs the build, parallel security scans, and deployment stages in s
   <em>Target group routing and health status on the AWS Application Load Balancer</em>
 </div> <br>
 
-Inbound traffic is routed through the AWS ALB, which applies host- and path-based routing rules to direct requests to the appropriate pods/targets.
+> Inbound traffic is routed through the AWS ALB, which applies host- and path-based routing rules to direct requests to the appropriate pods/targets.
 
 ### 7.3. Log Management (CloudWatch)
 <div align="center">
@@ -212,7 +220,7 @@ Inbound traffic is routed through the AWS ALB, which applies host- and path-base
   <em>Separate CloudWatch log groups for Development and Production</em>
 </div> <br>
 
-Application logs are split by environment (`/ec2/shopnow-frontend` for Dev, `/prod/shopnow-frontend` via FluentBit for the EKS workload), keeping dev and prod logs isolated for easier debugging.
+> Application logs are split by environment (`/ec2/shopnow-frontend` for Dev, `/prod/shopnow-frontend` via FluentBit for the EKS workload), keeping dev and prod logs isolated for easier debugging.
 
 ### 7.4. Container Registry (ECR)
 <div align="center">
@@ -221,7 +229,7 @@ Application logs are split by environment (`/ec2/shopnow-frontend` for Dev, `/pr
   <em>Docker images stored in a private AWS ECR repository</em>
 </div> <br>
 
-Images are pushed to a private ECR repository using short-lived OIDC credentials — no static AWS keys are stored in CI.
+> Images are pushed to a private ECR repository using short-lived OIDC credentials — no static AWS keys are stored in CI.
 
 ### 7.5. Live Application (HTTPS)
 <div align="center">
@@ -230,7 +238,7 @@ Images are pushed to a private ECR repository using short-lived OIDC credentials
   <em>Application running on its custom domain with a valid SSL certificate</em>
 </div> <br>
 
-The app runs on its custom domain over HTTPS, with the certificate provisioned and auto-renewed via AWS Certificate Manager.
+> The app runs on its custom domain over HTTPS, with the certificate provisioned and auto-renewed via AWS Certificate Manager.
 
 ### 7.6. Security Scan Reports
 <p align="center">
@@ -245,7 +253,7 @@ The app runs on its custom domain over HTTPS, with the certificate provisioned a
 </kbd>
 </p>
 
-Each pipeline run produces scan reports used as gates before deployment:
+> Each pipeline run produces scan reports used as gates before deployment:
 
 <div align="center">
   <table width="70%">
@@ -256,8 +264,8 @@ Each pipeline run produces scan reports used as gates before deployment:
     </tr>
     <tr>
       <td align="left"><b>Dependency Vulnerabilities</b></td>
-      <td align="left">Snyk SAST</td>
-      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847">Snyk Scan Report</a></td>
+      <td align="left">Snyk (SCA + SAST)</td>
+      <td align="left"><a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26721740846/artifacts/7319313847">Snyk SCA Report</a> / <a href="https://github.com/Bel7phegor/shopnow-frontend/actions/runs/27834771904/artifacts/7753460301">Snyk SAST Report</a></td>
     </tr>
     <tr>
       <td align="left"><b>Repo Secret Leakage</b></td>
@@ -281,6 +289,15 @@ Each pipeline run produces scan reports used as gates before deployment:
     </tr>
   </table>
 </div>
+
+### 7.7. Telegram Security Notifications
+<div align="center">
+  <img src="img/telegram-security-alert.png" width="350" alt="Telegram Security Alert Notification">
+  <br>
+  <em>Real-time Telegram alert showing scan status and the report attached for the job that found a vulnerability</em>
+</div> <br>
+
+> When a scan job detects `HIGH`/`CRITICAL` findings, the pipeline sends a Telegram message summarizing the result alongside the deployment approval link, then attaches only the HTML report from the scanner(s) that flagged an issue.
 
 ## 8. Contact & Project Context
 
