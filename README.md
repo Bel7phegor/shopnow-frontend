@@ -183,7 +183,7 @@ A few key infrastructure choices and the reasoning behind them:
 | **Frontend Engine** | React 18.2 |
 | **Cloud Infrastructure** | AWS (EKS, EC2, VPC, Route 53, CloudWatch, ACM, IAM OIDC), Terraform IaC |
 | **Deployment & Orchestration** | Docker (Multi-stage Build), Helm Charts, GitHub Actions Pipelines |
-| **DevSecOps Scanners** | Snyk (SAST), Aqua Trivy (FS & Container Scan), OWASP ZAP (DAST), Arachni Framework |
+| **DevSecOps Scanners** | Snyk (SAST & SCA), Aqua Trivy (FS & Container Scan), OWASP ZAP (DAST), Arachni Framework |
 
 ---
 
@@ -193,16 +193,24 @@ The screenshots and links below show the pipeline, infrastructure, and security 
 
 ### 7.1. CI/CD Pipeline Execution
 
-**Live Workflow Runs:** [GitHub Actions Production Workflow](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26713547479)
+**Live Workflow Runs Release v1.2.8:** [GitHub Actions Production Workflow](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/27831585020)
 
 <div align="center">
   <img src="img/pipeline-success.png" width="650" alt="GitHub Actions Pipeline Success Status">
   <br>
-  <em>End-to-end Build, Scan, and Deploy workflow completing successfully</em>
+  <em>End-to-end Build, Scan, and Deploy workflow completing successfully on Production</em>
 </div> <br>
 
 
 > The pipeline runs the build, parallel security scans, and deployment stages in sequence, with the deploy step only proceeding once all security gates pass.
+
+**Live Workflow Runs test/dev:** [GitHub Actions Production Workflow](https://github.com/Bel7phegor/shopnow-frontend/actions/runs/26713547479)
+
+<div align="center">
+  <img src="img/pipeline-test-env.png" width="650" alt="GitHub Actions Pipeline Success Status">
+  <br>
+  <em>End-to-end Build, Scan, and Deploy workflow completing successfully on test/development</em>
+</div> <br>
 
 ### 7.2. Traffic Routing (ALB)
 <div align="center">
